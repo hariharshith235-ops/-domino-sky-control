@@ -1,0 +1,2938 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Domino Sky Control — Disruption &amp; Recovery Simulator</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React 18 & ReactDOM 18 -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- Babel Standalone for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    html, body {
+      background-color: #0A0A0B;
+      color: #F5F5F7;
+      margin: 0;
+      padding: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    /* Custom subtle scrollbars */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0C0C0F;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #272730;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3F3F4C;
+    }
+    .grid-cols-19 {
+      grid-template-columns: repeat(19, minmax(0, 1fr));
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useCallback } = React;
+
+    // ============================================================================
+    // 0. INLINE SVG ICONS (Zero external icon library dependencies)
+    // ============================================================================
+    const IconSvg = ({ children, className = 'w-4 h-4', strokeWidth = 2 }) => (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={className}
+      >
+        {children}
+      </svg>
+    );
+
+    const Plane = (p) => (
+      <IconSvg {...p}>
+        <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" />
+      </IconSvg>
+    );
+    const Clock = (p) => (
+      <IconSvg {...p}>
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+      </IconSvg>
+    );
+    const ShieldAlert = (p) => (
+      <IconSvg {...p}>
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />
+        <path d="M12 8v4" />
+        <path d="M12 16h.01" />
+      </IconSvg>
+    );
+    const RotateCcw = (p) => (
+      <IconSvg {...p}>
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+        <path d="M3 3v5h5" />
+      </IconSvg>
+    );
+    const Undo2 = (p) => (
+      <IconSvg {...p}>
+        <path d="M9 14 4 9l5-5" />
+        <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11" />
+      </IconSvg>
+    );
+    const Zap = (p) => (
+      <IconSvg {...p}>
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+      </IconSvg>
+    );
+    const CheckCircle2 = (p) => (
+      <IconSvg {...p}>
+        <circle cx="12" cy="12" r="10" />
+        <path d="m9 12 2 2 4-4" />
+      </IconSvg>
+    );
+    const XCircle = (p) => (
+      <IconSvg {...p}>
+        <circle cx="12" cy="12" r="10" />
+        <path d="m15 9-6 6" />
+        <path d="m9 9 6 6" />
+      </IconSvg>
+    );
+    const Sliders = (p) => (
+      <IconSvg {...p}>
+        <line x1="4" x2="4" y1="21" y2="14" />
+        <line x1="4" x2="4" y1="10" y2="3" />
+        <line x1="12" x2="12" y1="21" y2="12" />
+        <line x1="12" x2="12" y1="8" y2="3" />
+        <line x1="20" x2="20" y1="21" y2="16" />
+        <line x1="20" x2="20" y1="12" y2="3" />
+        <line x1="2" x2="6" y1="14" y2="14" />
+        <line x1="10" x2="14" y1="8" y2="8" />
+        <line x1="18" x2="22" y1="16" y2="16" />
+      </IconSvg>
+    );
+    const MapIcon = (p) => (
+      <IconSvg {...p}>
+        <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+        <line x1="9" x2="9" y1="3" y2="18" />
+        <line x1="15" x2="15" y1="6" y2="21" />
+      </IconSvg>
+    );
+    const CalendarRange = (p) => (
+      <IconSvg {...p}>
+        <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+        <line x1="16" x2="16" y1="2" y2="6" />
+        <line x1="8" x2="8" y1="2" y2="6" />
+        <line x1="3" x2="21" y1="10" y2="10" />
+        <path d="M17 14h-6" />
+        <path d="M13 18H7" />
+      </IconSvg>
+    );
+    const GitMerge = (p) => (
+      <IconSvg {...p}>
+        <circle cx="18" cy="18" r="3" />
+        <circle cx="6" cy="6" r="3" />
+        <path d="M6 21V9a9 9 0 0 0 9 9" />
+      </IconSvg>
+    );
+    const Wrench = (p) => (
+      <IconSvg {...p}>
+        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+      </IconSvg>
+    );
+    const CloudFog = (p) => (
+      <IconSvg {...p}>
+        <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242" />
+        <path d="M16 17H7" />
+        <path d="M17 21H9" />
+      </IconSvg>
+    );
+    const Sparkles = (p) => (
+      <IconSvg {...p}>
+        <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+      </IconSvg>
+    );
+    const ChevronRight = (p) => (
+      <IconSvg {...p}>
+        <path d="m9 18 6-6-6-6" />
+      </IconSvg>
+    );
+    const ChevronDown = (p) => (
+      <IconSvg {...p}>
+        <path d="m6 9 6 6 6-6" />
+      </IconSvg>
+    );
+    const FlaskConical = (p) => (
+      <IconSvg {...p}>
+        <path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2" />
+        <path d="M8.5 2h7" />
+        <path d="M7 16h10" />
+      </IconSvg>
+    );
+    const Info = (p) => (
+      <IconSvg {...p}>
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 16v-4" />
+        <path d="M12 8h.01" />
+      </IconSvg>
+    );
+    const X = (p) => (
+      <IconSvg {...p}>
+        <path d="M18 6 6 18" />
+        <path d="m6 6 12 12" />
+      </IconSvg>
+    );
+    const Filter = (p) => (
+      <IconSvg {...p}>
+        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+      </IconSvg>
+    );
+    const Radio = (p) => (
+      <IconSvg {...p}>
+        <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9" />
+        <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5" />
+        <circle cx="12" cy="12" r="2" />
+        <path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5" />
+        <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19" />
+      </IconSvg>
+    );
+    const Layers = (p) => (
+      <IconSvg {...p}>
+        <polygon points="12 2 2 7 12 12 22 7 12 2" />
+        <polyline points="2 17 12 22 22 17" />
+        <polyline points="2 12 12 17 22 12" />
+      </IconSvg>
+    );
+
+    // ============================================================================
+    // 1. EMBEDDED DATASET (EXACT DOMINO SKY flight_network.json)
+    // ============================================================================
+    const FLIGHT_NETWORK = {
+      meta: {
+        dataset: 'Domino Sky flight network',
+        operating_day: 'single day, all times local IST (UTC+05:30), 24-hour HH:MM',
+        min_turnaround_minutes: 30,
+        seats_per_aircraft: 180,
+      },
+      airports: [
+        { id: 'DEL', name: 'Indira Gandhi International', city: 'Delhi', lat: 28.5562, lng: 77.1, tier: 'mega_hub', capacity_per_hour: 40 },
+        { id: 'BOM', name: 'Chhatrapati Shivaji Maharaj International', city: 'Mumbai', lat: 19.0896, lng: 72.8656, tier: 'mega_hub', capacity_per_hour: 32 },
+        { id: 'BLR', name: 'Kempegowda International', city: 'Bengaluru', lat: 13.1986, lng: 77.7066, tier: 'mega_hub', capacity_per_hour: 34 },
+        { id: 'HYD', name: 'Rajiv Gandhi International', city: 'Hyderabad', lat: 17.2403, lng: 78.4294, tier: 'mega_hub', capacity_per_hour: 30 },
+        { id: 'MAA', name: 'Chennai International', city: 'Chennai', lat: 12.9941, lng: 80.1709, tier: 'regional_hub', capacity_per_hour: 20 },
+        { id: 'CCU', name: 'Netaji Subhas Chandra Bose International', city: 'Kolkata', lat: 22.6547, lng: 88.4467, tier: 'regional_hub', capacity_per_hour: 20 },
+        { id: 'AMD', name: 'Sardar Vallabhbhai Patel International', city: 'Ahmedabad', lat: 23.0772, lng: 72.6347, tier: 'regional_hub', capacity_per_hour: 18 },
+        { id: 'COK', name: 'Cochin International', city: 'Kochi', lat: 10.152, lng: 76.4019, tier: 'regional_hub', capacity_per_hour: 16 },
+        { id: 'GOI', name: 'Dabolim', city: 'Goa', lat: 15.3808, lng: 73.8314, tier: 'spoke', capacity_per_hour: 10 },
+        { id: 'PNQ', name: 'Pune', city: 'Pune', lat: 18.5821, lng: 73.9197, tier: 'spoke', capacity_per_hour: 10 },
+        { id: 'JAI', name: 'Jaipur International', city: 'Jaipur', lat: 26.8242, lng: 75.8122, tier: 'spoke', capacity_per_hour: 10 },
+        { id: 'GAU', name: 'Lokpriya Gopinath Bordoloi International', city: 'Guwahati', lat: 26.1061, lng: 91.5859, tier: 'spoke', capacity_per_hour: 8 },
+        { id: 'LKO', name: 'Chaudhary Charan Singh International', city: 'Lucknow', lat: 26.7606, lng: 80.8893, tier: 'spoke', capacity_per_hour: 10 },
+        { id: 'IXC', name: 'Chandigarh International', city: 'Chandigarh', lat: 30.6735, lng: 76.7885, tier: 'spoke', capacity_per_hour: 8 },
+        { id: 'BBI', name: 'Biju Patnaik International', city: 'Bhubaneswar', lat: 20.2444, lng: 85.8178, tier: 'spoke', capacity_per_hour: 8 },
+        { id: 'TRV', name: 'Trivandrum International', city: 'Thiruvananthapuram', lat: 8.4821, lng: 76.9201, tier: 'spoke', capacity_per_hour: 8 },
+      ],
+      flights: [
+        { flight_id: 'DS0101', tail_id: 'VT-DS01', leg_order: 1, origin: 'DEL', destination: 'JAI', dep: '08:00', arr: '08:50', block_minutes: 50, pax: 118, turnaround_before_min: null },
+        { flight_id: 'DS0102', tail_id: 'VT-DS01', leg_order: 2, origin: 'JAI', destination: 'DEL', dep: '09:25', arr: '10:15', block_minutes: 50, pax: 137, turnaround_before_min: 35 },
+        { flight_id: 'DS0103', tail_id: 'VT-DS01', leg_order: 3, origin: 'DEL', destination: 'LKO', dep: '10:50', arr: '11:55', block_minutes: 65, pax: 137, turnaround_before_min: 35 },
+        { flight_id: 'DS0104', tail_id: 'VT-DS01', leg_order: 4, origin: 'LKO', destination: 'DEL', dep: '13:05', arr: '14:10', block_minutes: 65, pax: 155, turnaround_before_min: 70 },
+        { flight_id: 'DS0105', tail_id: 'VT-DS01', leg_order: 5, origin: 'DEL', destination: 'IXC', dep: '15:15', arr: '16:05', block_minutes: 50, pax: 117, turnaround_before_min: 65 },
+        { flight_id: 'DS0201', tail_id: 'VT-DS02', leg_order: 1, origin: 'DEL', destination: 'BOM', dep: '06:00', arr: '08:10', block_minutes: 130, pax: 153, turnaround_before_min: null },
+        { flight_id: 'DS0202', tail_id: 'VT-DS02', leg_order: 2, origin: 'BOM', destination: 'PNQ', dep: '09:20', arr: '10:00', block_minutes: 40, pax: 142, turnaround_before_min: 70 },
+        { flight_id: 'DS0203', tail_id: 'VT-DS02', leg_order: 3, origin: 'PNQ', destination: 'BOM', dep: '11:15', arr: '11:55', block_minutes: 40, pax: 140, turnaround_before_min: 75 },
+        { flight_id: 'DS0204', tail_id: 'VT-DS02', leg_order: 4, origin: 'BOM', destination: 'GOI', dep: '12:30', arr: '13:35', block_minutes: 65, pax: 151, turnaround_before_min: 35 },
+        { flight_id: 'DS0301', tail_id: 'VT-DS03', leg_order: 1, origin: 'DEL', destination: 'AMD', dep: '12:15', arr: '13:50', block_minutes: 95, pax: 161, turnaround_before_min: null },
+        { flight_id: 'DS0302', tail_id: 'VT-DS03', leg_order: 2, origin: 'AMD', destination: 'BOM', dep: '14:25', arr: '15:35', block_minutes: 70, pax: 166, turnaround_before_min: 35 },
+        { flight_id: 'DS0303', tail_id: 'VT-DS03', leg_order: 3, origin: 'BOM', destination: 'DEL', dep: '16:10', arr: '18:20', block_minutes: 130, pax: 167, turnaround_before_min: 35 },
+        { flight_id: 'DS0304', tail_id: 'VT-DS03', leg_order: 4, origin: 'DEL', destination: 'CCU', dep: '18:55', arr: '21:20', block_minutes: 145, pax: 167, turnaround_before_min: 35 },
+        { flight_id: 'DS0401', tail_id: 'VT-DS04', leg_order: 1, origin: 'BOM', destination: 'GOI', dep: '07:45', arr: '08:50', block_minutes: 65, pax: 141, turnaround_before_min: null },
+        { flight_id: 'DS0402', tail_id: 'VT-DS04', leg_order: 2, origin: 'GOI', destination: 'BOM', dep: '09:20', arr: '10:25', block_minutes: 65, pax: 124, turnaround_before_min: 30 },
+        { flight_id: 'DS0403', tail_id: 'VT-DS04', leg_order: 3, origin: 'BOM', destination: 'PNQ', dep: '11:35', arr: '12:15', block_minutes: 40, pax: 143, turnaround_before_min: 70 },
+        { flight_id: 'DS0404', tail_id: 'VT-DS04', leg_order: 4, origin: 'PNQ', destination: 'BOM', dep: '12:50', arr: '13:30', block_minutes: 40, pax: 117, turnaround_before_min: 35 },
+        { flight_id: 'DS0405', tail_id: 'VT-DS04', leg_order: 5, origin: 'BOM', destination: 'AMD', dep: '14:45', arr: '15:55', block_minutes: 70, pax: 168, turnaround_before_min: 75 },
+        { flight_id: 'DS0501', tail_id: 'VT-DS05', leg_order: 1, origin: 'BOM', destination: 'BLR', dep: '08:15', arr: '10:00', block_minutes: 105, pax: 159, turnaround_before_min: null },
+        { flight_id: 'DS0502', tail_id: 'VT-DS05', leg_order: 2, origin: 'BLR', destination: 'COK', dep: '11:10', arr: '12:10', block_minutes: 60, pax: 168, turnaround_before_min: 70 },
+        { flight_id: 'DS0503', tail_id: 'VT-DS05', leg_order: 3, origin: 'COK', destination: 'BLR', dep: '13:15', arr: '14:15', block_minutes: 60, pax: 165, turnaround_before_min: 65 },
+        { flight_id: 'DS0504', tail_id: 'VT-DS05', leg_order: 4, origin: 'BLR', destination: 'MAA', dep: '14:45', arr: '15:40', block_minutes: 55, pax: 165, turnaround_before_min: 30 },
+        { flight_id: 'DS0601', tail_id: 'VT-DS06', leg_order: 1, origin: 'BLR', destination: 'COK', dep: '06:00', arr: '07:00', block_minutes: 60, pax: 153, turnaround_before_min: null },
+        { flight_id: 'DS0602', tail_id: 'VT-DS06', leg_order: 2, origin: 'COK', destination: 'BLR', dep: '07:35', arr: '08:35', block_minutes: 60, pax: 154, turnaround_before_min: 35 },
+        { flight_id: 'DS0603', tail_id: 'VT-DS06', leg_order: 3, origin: 'BLR', destination: 'MAA', dep: '09:40', arr: '10:35', block_minutes: 55, pax: 172, turnaround_before_min: 65 },
+        { flight_id: 'DS0604', tail_id: 'VT-DS06', leg_order: 4, origin: 'MAA', destination: 'BLR', dep: '11:05', arr: '12:00', block_minutes: 55, pax: 171, turnaround_before_min: 30 },
+        { flight_id: 'DS0605', tail_id: 'VT-DS06', leg_order: 5, origin: 'BLR', destination: 'TRV', dep: '12:35', arr: '13:50', block_minutes: 75, pax: 152, turnaround_before_min: 35 },
+        { flight_id: 'DS0701', tail_id: 'VT-DS07', leg_order: 1, origin: 'HYD', destination: 'BOM', dep: '06:30', arr: '07:55', block_minutes: 85, pax: 173, turnaround_before_min: null },
+        { flight_id: 'DS0702', tail_id: 'VT-DS07', leg_order: 2, origin: 'BOM', destination: 'HYD', dep: '09:10', arr: '10:35', block_minutes: 85, pax: 161, turnaround_before_min: 75 },
+        { flight_id: 'DS0703', tail_id: 'VT-DS07', leg_order: 3, origin: 'HYD', destination: 'BLR', dep: '11:45', arr: '12:55', block_minutes: 70, pax: 150, turnaround_before_min: 70 },
+        { flight_id: 'DS0704', tail_id: 'VT-DS07', leg_order: 4, origin: 'BLR', destination: 'HYD', dep: '13:25', arr: '14:35', block_minutes: 70, pax: 156, turnaround_before_min: 30 },
+        { flight_id: 'DS0801', tail_id: 'VT-DS08', leg_order: 1, origin: 'HYD', destination: 'BLR', dep: '12:30', arr: '13:40', block_minutes: 70, pax: 162, turnaround_before_min: null },
+        { flight_id: 'DS0802', tail_id: 'VT-DS08', leg_order: 2, origin: 'BLR', destination: 'HYD', dep: '14:15', arr: '15:25', block_minutes: 70, pax: 155, turnaround_before_min: 35 },
+        { flight_id: 'DS0803', tail_id: 'VT-DS08', leg_order: 3, origin: 'HYD', destination: 'MAA', dep: '16:00', arr: '17:15', block_minutes: 75, pax: 159, turnaround_before_min: 35 },
+        { flight_id: 'DS0804', tail_id: 'VT-DS08', leg_order: 4, origin: 'MAA', destination: 'HYD', dep: '17:50', arr: '19:05', block_minutes: 75, pax: 170, turnaround_before_min: 35 },
+        { flight_id: 'DS0805', tail_id: 'VT-DS08', leg_order: 5, origin: 'HYD', destination: 'BBI', dep: '19:40', arr: '21:25', block_minutes: 105, pax: 147, turnaround_before_min: 35 },
+        { flight_id: 'DS0901', tail_id: 'VT-DS09', leg_order: 1, origin: 'DEL', destination: 'IXC', dep: '09:15', arr: '10:05', block_minutes: 50, pax: 141, turnaround_before_min: null },
+        { flight_id: 'DS0902', tail_id: 'VT-DS09', leg_order: 2, origin: 'IXC', destination: 'DEL', dep: '11:15', arr: '12:05', block_minutes: 50, pax: 113, turnaround_before_min: 70 },
+        { flight_id: 'DS0903', tail_id: 'VT-DS09', leg_order: 3, origin: 'DEL', destination: 'LKO', dep: '13:25', arr: '14:30', block_minutes: 65, pax: 147, turnaround_before_min: 80 },
+        { flight_id: 'DS0904', tail_id: 'VT-DS09', leg_order: 4, origin: 'LKO', destination: 'DEL', dep: '15:35', arr: '16:40', block_minutes: 65, pax: 130, turnaround_before_min: 65 },
+        { flight_id: 'DS1001', tail_id: 'VT-DS10', leg_order: 1, origin: 'CCU', destination: 'BBI', dep: '13:00', arr: '14:05', block_minutes: 65, pax: 133, turnaround_before_min: null },
+        { flight_id: 'DS1002', tail_id: 'VT-DS10', leg_order: 2, origin: 'BBI', destination: 'CCU', dep: '14:40', arr: '15:45', block_minutes: 65, pax: 132, turnaround_before_min: 35 },
+        { flight_id: 'DS1003', tail_id: 'VT-DS10', leg_order: 3, origin: 'CCU', destination: 'GAU', dep: '16:20', arr: '17:35', block_minutes: 75, pax: 141, turnaround_before_min: 35 },
+        { flight_id: 'DS1004', tail_id: 'VT-DS10', leg_order: 4, origin: 'GAU', destination: 'CCU', dep: '18:10', arr: '19:25', block_minutes: 75, pax: 137, turnaround_before_min: 35 },
+        { flight_id: 'DS1005', tail_id: 'VT-DS10', leg_order: 5, origin: 'CCU', destination: 'LKO', dep: '20:00', arr: '21:45', block_minutes: 105, pax: 117, turnaround_before_min: 35 },
+        { flight_id: 'DS1101', tail_id: 'VT-DS11', leg_order: 1, origin: 'CCU', destination: 'DEL', dep: '12:00', arr: '14:25', block_minutes: 145, pax: 160, turnaround_before_min: null },
+        { flight_id: 'DS1102', tail_id: 'VT-DS11', leg_order: 2, origin: 'DEL', destination: 'LKO', dep: '15:05', arr: '16:10', block_minutes: 65, pax: 149, turnaround_before_min: 40 },
+        { flight_id: 'DS1103', tail_id: 'VT-DS11', leg_order: 3, origin: 'LKO', destination: 'CCU', dep: '16:50', arr: '18:35', block_minutes: 105, pax: 142, turnaround_before_min: 40 },
+        { flight_id: 'DS1104', tail_id: 'VT-DS11', leg_order: 4, origin: 'CCU', destination: 'GAU', dep: '19:15', arr: '20:30', block_minutes: 75, pax: 136, turnaround_before_min: 40 },
+        { flight_id: 'DS1201', tail_id: 'VT-DS12', leg_order: 1, origin: 'AMD', destination: 'BOM', dep: '06:30', arr: '07:40', block_minutes: 70, pax: 171, turnaround_before_min: null },
+        { flight_id: 'DS1202', tail_id: 'VT-DS12', leg_order: 2, origin: 'BOM', destination: 'AMD', dep: '08:10', arr: '09:20', block_minutes: 70, pax: 154, turnaround_before_min: 30 },
+        { flight_id: 'DS1203', tail_id: 'VT-DS12', leg_order: 3, origin: 'AMD', destination: 'DEL', dep: '10:35', arr: '12:10', block_minutes: 95, pax: 158, turnaround_before_min: 75 },
+        { flight_id: 'DS1204', tail_id: 'VT-DS12', leg_order: 4, origin: 'DEL', destination: 'AMD', dep: '12:45', arr: '14:20', block_minutes: 95, pax: 171, turnaround_before_min: 35 },
+        { flight_id: 'DS1301', tail_id: 'VT-DS13', leg_order: 1, origin: 'COK', destination: 'TRV', dep: '06:45', arr: '07:30', block_minutes: 45, pax: 136, turnaround_before_min: null },
+        { flight_id: 'DS1302', tail_id: 'VT-DS13', leg_order: 2, origin: 'TRV', destination: 'COK', dep: '08:05', arr: '08:50', block_minutes: 45, pax: 138, turnaround_before_min: 35 },
+        { flight_id: 'DS1303', tail_id: 'VT-DS13', leg_order: 3, origin: 'COK', destination: 'MAA', dep: '09:55', arr: '11:10', block_minutes: 75, pax: 148, turnaround_before_min: 65 },
+        { flight_id: 'DS1304', tail_id: 'VT-DS13', leg_order: 4, origin: 'MAA', destination: 'COK', dep: '11:40', arr: '12:55', block_minutes: 75, pax: 153, turnaround_before_min: 30 },
+        { flight_id: 'DS1305', tail_id: 'VT-DS13', leg_order: 5, origin: 'COK', destination: 'BLR', dep: '13:30', arr: '14:30', block_minutes: 60, pax: 151, turnaround_before_min: 35 },
+        { flight_id: 'DS1401', tail_id: 'VT-DS14', leg_order: 1, origin: 'TRV', destination: 'BLR', dep: '13:30', arr: '14:45', block_minutes: 75, pax: 114, turnaround_before_min: null },
+        { flight_id: 'DS1402', tail_id: 'VT-DS14', leg_order: 2, origin: 'BLR', destination: 'HYD', dep: '15:55', arr: '17:05', block_minutes: 70, pax: 165, turnaround_before_min: 70 },
+        { flight_id: 'DS1403', tail_id: 'VT-DS14', leg_order: 3, origin: 'HYD', destination: 'BLR', dep: '17:35', arr: '18:45', block_minutes: 70, pax: 170, turnaround_before_min: 30 },
+        { flight_id: 'DS1404', tail_id: 'VT-DS14', leg_order: 4, origin: 'BLR', destination: 'TRV', dep: '19:50', arr: '21:05', block_minutes: 75, pax: 117, turnaround_before_min: 65 },
+        { flight_id: 'DS1501', tail_id: 'VT-DS15', leg_order: 1, origin: 'PNQ', destination: 'BOM', dep: '07:00', arr: '07:40', block_minutes: 40, pax: 143, turnaround_before_min: null },
+        { flight_id: 'DS1502', tail_id: 'VT-DS15', leg_order: 2, origin: 'BOM', destination: 'DEL', dep: '08:50', arr: '11:00', block_minutes: 130, pax: 159, turnaround_before_min: 70 },
+        { flight_id: 'DS1503', tail_id: 'VT-DS15', leg_order: 3, origin: 'DEL', destination: 'JAI', dep: '12:20', arr: '13:10', block_minutes: 50, pax: 136, turnaround_before_min: 80 },
+        { flight_id: 'DS1504', tail_id: 'VT-DS15', leg_order: 4, origin: 'JAI', destination: 'DEL', dep: '13:45', arr: '14:35', block_minutes: 50, pax: 123, turnaround_before_min: 35 },
+        { flight_id: 'DS1601', tail_id: 'VT-DS16', leg_order: 1, origin: 'GOI', destination: 'BLR', dep: '14:00', arr: '15:10', block_minutes: 70, pax: 156, turnaround_before_min: null },
+        { flight_id: 'DS1602', tail_id: 'VT-DS16', leg_order: 2, origin: 'BLR', destination: 'HYD', dep: '16:15', arr: '17:25', block_minutes: 70, pax: 163, turnaround_before_min: 65 },
+        { flight_id: 'DS1603', tail_id: 'VT-DS16', leg_order: 3, origin: 'HYD', destination: 'BLR', dep: '18:00', arr: '19:10', block_minutes: 70, pax: 159, turnaround_before_min: 35 },
+        { flight_id: 'DS1604', tail_id: 'VT-DS16', leg_order: 4, origin: 'BLR', destination: 'GOI', dep: '20:20', arr: '21:30', block_minutes: 70, pax: 135, turnaround_before_min: 70 },
+      ],
+      connections: [
+        { connection_id: 'CX01', airport: 'BOM', from_flight: 'DS1201', to_flight: 'DS1502', passengers: 43, min_connect_minutes: 45 },
+        { connection_id: 'CX02', airport: 'BOM', from_flight: 'DS1201', to_flight: 'DS0202', passengers: 20, min_connect_minutes: 45 },
+        { connection_id: 'CX03', airport: 'BOM', from_flight: 'DS0701', to_flight: 'DS1502', passengers: 42, min_connect_minutes: 45 },
+        { connection_id: 'CX04', airport: 'BOM', from_flight: 'DS0701', to_flight: 'DS0202', passengers: 46, min_connect_minutes: 45 },
+        { connection_id: 'CX05', airport: 'BOM', from_flight: 'DS0201', to_flight: 'DS0702', passengers: 30, min_connect_minutes: 45 },
+        { connection_id: 'CX06', airport: 'MAA', from_flight: 'DS0603', to_flight: 'DS1304', passengers: 42, min_connect_minutes: 40 },
+        { connection_id: 'CX07', airport: 'BLR', from_flight: 'DS0604', to_flight: 'DS0704', passengers: 25, min_connect_minutes: 45 },
+        { connection_id: 'CX08', airport: 'BLR', from_flight: 'DS0604', to_flight: 'DS0802', passengers: 41, min_connect_minutes: 45 },
+        { connection_id: 'CX09', airport: 'COK', from_flight: 'DS0502', to_flight: 'DS1305', passengers: 44, min_connect_minutes: 40 },
+        { connection_id: 'CX10', airport: 'DEL', from_flight: 'DS1203', to_flight: 'DS0903', passengers: 18, min_connect_minutes: 45 },
+        { connection_id: 'CX11', airport: 'BLR', from_flight: 'DS0703', to_flight: 'DS0504', passengers: 31, min_connect_minutes: 45 },
+        { connection_id: 'CX12', airport: 'BLR', from_flight: 'DS0801', to_flight: 'DS0504', passengers: 45, min_connect_minutes: 45 },
+        { connection_id: 'CX13', airport: 'DEL', from_flight: 'DS0104', to_flight: 'DS1102', passengers: 37, min_connect_minutes: 45 },
+        { connection_id: 'CX14', airport: 'DEL', from_flight: 'DS1101', to_flight: 'DS0105', passengers: 20, min_connect_minutes: 45 },
+        { connection_id: 'CX15', airport: 'BLR', from_flight: 'DS1305', to_flight: 'DS1402', passengers: 26, min_connect_minutes: 45 },
+        { connection_id: 'CX16', airport: 'BLR', from_flight: 'DS1305', to_flight: 'DS1602', passengers: 40, min_connect_minutes: 45 },
+        { connection_id: 'CX17', airport: 'HYD', from_flight: 'DS0704', to_flight: 'DS0803', passengers: 23, min_connect_minutes: 45 },
+        { connection_id: 'CX18', airport: 'BLR', from_flight: 'DS1401', to_flight: 'DS1602', passengers: 39, min_connect_minutes: 45 },
+        { connection_id: 'CX19', airport: 'DEL', from_flight: 'DS0904', to_flight: 'DS0304', passengers: 14, min_connect_minutes: 45 },
+        { connection_id: 'CX20', airport: 'HYD', from_flight: 'DS1402', to_flight: 'DS1603', passengers: 19, min_connect_minutes: 45 },
+        { connection_id: 'CX21', airport: 'CCU', from_flight: 'DS1103', to_flight: 'DS1005', passengers: 14, min_connect_minutes: 40 },
+      ],
+      crews: [
+        { crew_id: 'CR01', tail_id: 'VT-DS01', base: 'DEL', duty_start: '07:15', max_duty_mins: 600, flight_ids: ['DS0101', 'DS0102', 'DS0103', 'DS0104', 'DS0105'] },
+        { crew_id: 'CR02', tail_id: 'VT-DS02', base: 'DEL', duty_start: '05:15', max_duty_mins: 600, flight_ids: ['DS0201', 'DS0202', 'DS0203', 'DS0204'] },
+        { crew_id: 'CR03', tail_id: 'VT-DS03', base: 'DEL', duty_start: '11:30', max_duty_mins: 600, flight_ids: ['DS0301', 'DS0302', 'DS0303', 'DS0304'] },
+        { crew_id: 'CR04', tail_id: 'VT-DS04', base: 'BOM', duty_start: '07:00', max_duty_mins: 600, flight_ids: ['DS0401', 'DS0402', 'DS0403', 'DS0404', 'DS0405'] },
+        { crew_id: 'CR05', tail_id: 'VT-DS05', base: 'BOM', duty_start: '07:30', max_duty_mins: 600, flight_ids: ['DS0501', 'DS0502', 'DS0503', 'DS0504'] },
+        { crew_id: 'CR06', tail_id: 'VT-DS06', base: 'BLR', duty_start: '05:15', max_duty_mins: 600, flight_ids: ['DS0601', 'DS0602', 'DS0603', 'DS0604', 'DS0605'] },
+        { crew_id: 'CR07', tail_id: 'VT-DS07', base: 'HYD', duty_start: '05:45', max_duty_mins: 600, flight_ids: ['DS0701', 'DS0702', 'DS0703', 'DS0704'] },
+        { crew_id: 'CR08', tail_id: 'VT-DS08', base: 'HYD', duty_start: '11:45', max_duty_mins: 600, flight_ids: ['DS0801', 'DS0802', 'DS0803', 'DS0804', 'DS0805'] },
+        { crew_id: 'CR09', tail_id: 'VT-DS09', base: 'DEL', duty_start: '08:30', max_duty_mins: 600, flight_ids: ['DS0901', 'DS0902', 'DS0903', 'DS0904'] },
+        { crew_id: 'CR10', tail_id: 'VT-DS10', base: 'CCU', duty_start: '12:15', max_duty_mins: 600, flight_ids: ['DS1001', 'DS1002', 'DS1003', 'DS1004', 'DS1005'] },
+        { crew_id: 'CR11', tail_id: 'VT-DS11', base: 'CCU', duty_start: '11:15', max_duty_mins: 600, flight_ids: ['DS1101', 'DS1102', 'DS1103', 'DS1104'] },
+        { crew_id: 'CR12', tail_id: 'VT-DS12', base: 'AMD', duty_start: '05:45', max_duty_mins: 600, flight_ids: ['DS1201', 'DS1202', 'DS1203', 'DS1204'] },
+        { crew_id: 'CR13', tail_id: 'VT-DS13', base: 'COK', duty_start: '06:00', max_duty_mins: 600, flight_ids: ['DS1301', 'DS1302', 'DS1303', 'DS1304', 'DS1305'] },
+        { crew_id: 'CR14', tail_id: 'VT-DS14', base: 'TRV', duty_start: '12:45', max_duty_mins: 600, flight_ids: ['DS1401', 'DS1402', 'DS1403', 'DS1404'] },
+        { crew_id: 'CR15', tail_id: 'VT-DS15', base: 'PNQ', duty_start: '06:15', max_duty_mins: 600, flight_ids: ['DS1501', 'DS1502', 'DS1503', 'DS1504'] },
+        { crew_id: 'CR16', tail_id: 'VT-DS16', base: 'GOI', duty_start: '13:15', max_duty_mins: 600, flight_ids: ['DS1601', 'DS1602', 'DS1603', 'DS1604'] },
+      ],
+      spare_aircraft: [
+        { tail_id: 'VT-DS17', base: 'BLR', available_from: '05:00', seats: 180 },
+        { tail_id: 'VT-DS18', base: 'DEL', available_from: '05:00', seats: 180 },
+      ],
+    };
+
+    // ============================================================================
+    // 2. TIME UTILITIES, DESIGN TOKENS & DEFAULT STATE
+    // ============================================================================
+    const MIN_TURNAROUND = FLIGHT_NETWORK.meta.min_turnaround_minutes;
+
+    function toMins(hhmm) {
+      const [h, m] = String(hhmm).split(':').map(Number);
+      return h * 60 + m;
+    }
+
+    function toHHMM(totalMins) {
+      const safe = Math.max(0, Math.round(totalMins));
+      const h = Math.floor(safe / 60);
+      const m = safe % 60;
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+
+    function formatDuration(mins) {
+      if (mins <= 0) return '0m';
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    }
+
+    const EMPTY_STATE = {
+      flightDelays: {},
+      cancelledFlights: [],
+      aogTails: {},
+      airportClosures: {},
+      spareAssignments: [],
+      retimes: {},
+    };
+
+    const CHAMFER_BTN = {
+      clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))',
+    };
+
+    const CHAMFER_CARD = {
+      clipPath: 'polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%)',
+    };
+
+    const CANCELLED_HATCH_STYLE = {
+      backgroundImage:
+        'repeating-linear-gradient(-45deg, #1B1B20 0px, #1B1B20 5px, #2A2A32 5px, #2A2A32 10px)',
+    };
+
+    const PRESETS = [
+      {
+        id: 'vt-ds03-90m',
+        label: '90m Delay VT-DS03',
+        icon: Clock,
+        focusFlight: 'DS0301',
+        state: { ...EMPTY_STATE, flightDelays: { DS0301: 90 } },
+      },
+      {
+        id: 'del-fog',
+        label: 'Delhi Fog 06:00–10:00',
+        icon: CloudFog,
+        focusFlight: 'DS0201',
+        state: { ...EMPTY_STATE, airportClosures: { DEL: { start: 360, end: 600 } } },
+      },
+      {
+        id: 'blr-ripple',
+        label: 'BLR Ripple DS0801 +45m',
+        icon: GitMerge,
+        focusFlight: 'DS0801',
+        state: { ...EMPTY_STATE, flightDelays: { DS0801: 45 } },
+      },
+      {
+        id: 'aog-vt-ds06',
+        label: 'AOG VT-DS06 at BLR',
+        icon: Wrench,
+        focusFlight: 'DS0601',
+        state: { ...EMPTY_STATE, aogTails: { 'VT-DS06': 1 } },
+      },
+    ];
+
+    // ============================================================================
+    // 3. PURE CASCADE SIMULATION ENGINE
+    // ============================================================================
+    function runSimulation(dataset, state) {
+      const flightDelays = state.flightDelays || {};
+      const cancelledSet = new Set(state.cancelledFlights || []);
+      const aogTails = state.aogTails || {};
+      const closures = state.airportClosures || {};
+      const spareAssignments = state.spareAssignments || [];
+      const retimes = state.retimes || {};
+
+      const spareByTarget = {};
+      spareAssignments.forEach((sa) => {
+        if (!spareByTarget[sa.targetTail] || sa.fromLegOrder < spareByTarget[sa.targetTail].fromLegOrder) {
+          spareByTarget[sa.targetTail] = sa;
+        }
+      });
+
+      const byTail = {};
+      dataset.flights.forEach((f) => {
+        if (!byTail[f.tail_id]) byTail[f.tail_id] = [];
+        byTail[f.tail_id].push(f);
+      });
+      Object.values(byTail).forEach((legs) => legs.sort((a, b) => a.leg_order - b.leg_order));
+
+      const simulatedFlights = [];
+      const flightMap = {};
+
+      Object.entries(byTail).forEach(([tailId, legs]) => {
+        const aogFrom = aogTails[tailId];
+        const spare = spareByTarget[tailId];
+        let prevOriginalArr = null;
+        let prevSpareArr = null;
+
+        legs.forEach((f) => {
+          const schedDep = toMins(f.dep);
+          const schedArr = toMins(f.arr);
+          const isSpareOperated = Boolean(spare && f.leg_order >= spare.fromLegOrder);
+          const effectiveTail = isSpareOperated ? spare.spareId : tailId;
+
+          const isAogCancelled = !isSpareOperated && aogFrom != null && f.leg_order >= aogFrom;
+          const isCancelled = cancelledSet.has(f.flight_id) || isAogCancelled;
+
+          if (isCancelled) {
+            const res = {
+              ...f,
+              schedDep,
+              schedArr,
+              actualDep: schedDep,
+              actualArr: schedArr,
+              delay: 0,
+              status: 'cancelled',
+              effectiveTail,
+              isSpareOperated,
+              isCrewBreach: false,
+              closureHold: false,
+            };
+            simulatedFlights.push(res);
+            flightMap[f.flight_id] = res;
+            return;
+          }
+
+          const manualDelay = isSpareOperated ? 0 : (flightDelays[f.flight_id] || 0);
+          const retimeHold = retimes[f.flight_id] || 0;
+          const prevArr = isSpareOperated ? prevSpareArr : prevOriginalArr;
+
+          let actualDep = Math.max(
+            schedDep + manualDelay + retimeHold,
+            prevArr !== null ? prevArr + MIN_TURNAROUND : 0
+          );
+          let closureHold = false;
+
+          const origClosure = closures[f.origin];
+          if (origClosure && actualDep >= origClosure.start && actualDep < origClosure.end) {
+            actualDep = origClosure.end;
+            closureHold = true;
+          }
+
+          let actualArr = actualDep + f.block_minutes;
+          const destClosure = closures[f.destination];
+          if (destClosure && actualArr > destClosure.start && actualArr < destClosure.end) {
+            actualDep = destClosure.end - f.block_minutes;
+            actualArr = destClosure.end;
+            closureHold = true;
+            if (origClosure && actualDep >= origClosure.start && actualDep < origClosure.end) {
+              actualDep = origClosure.end;
+              actualArr = actualDep + f.block_minutes;
+            }
+          }
+
+          const delay = Math.max(0, actualDep - schedDep);
+          if (isSpareOperated) prevSpareArr = actualArr;
+          else prevOriginalArr = actualArr;
+
+          const res = {
+            ...f,
+            schedDep,
+            schedArr,
+            actualDep,
+            actualArr,
+            delay,
+            status: delay > 0 ? 'delayed' : 'on_time',
+            effectiveTail,
+            isSpareOperated,
+            isCrewBreach: false,
+            closureHold,
+          };
+          simulatedFlights.push(res);
+          flightMap[f.flight_id] = res;
+        });
+      });
+
+      const crews = dataset.crews.map((c) => {
+        const dutyStart = toMins(c.duty_start);
+        const activeLegs = c.flight_ids
+          .map((id) => flightMap[id])
+          .filter((f) => f && f.status !== 'cancelled' && !f.isSpareOperated);
+
+        const lastLeg = activeLegs[activeLegs.length - 1] || null;
+        const dutyEnd = lastLeg ? lastLeg.actualArr : dutyStart;
+        const dutyMins = lastLeg ? Math.max(0, dutyEnd - dutyStart) : 0;
+        const breachMins = Math.max(0, dutyMins - c.max_duty_mins);
+        const isBreach = breachMins > 0;
+        const headroomMins = Math.max(0, c.max_duty_mins - dutyMins);
+        const utilizationPct = Math.round((dutyMins / c.max_duty_mins) * 100);
+
+        if (isBreach) {
+          activeLegs.forEach((leg) => {
+            if (leg.actualArr - dutyStart > c.max_duty_mins) {
+              leg.isCrewBreach = true;
+            }
+          });
+        }
+
+        return {
+          ...c,
+          dutyStart,
+          dutyEnd,
+          dutyMins,
+          breachMins,
+          isBreach,
+          headroomMins,
+          utilizationPct,
+          activeFlightCount: activeLegs.length,
+        };
+      });
+
+      const connections = dataset.connections.map((cx) => {
+        const fromF = flightMap[cx.from_flight];
+        const toF = flightMap[cx.to_flight];
+        if (!fromF || !toF || fromF.status === 'cancelled' || toF.status === 'cancelled') {
+          return {
+            ...cx,
+            status: 'cancelled',
+            isMissed: true,
+            connectWindow: null,
+            slackMins: null,
+          };
+        }
+        const connectWindow = toF.actualDep - fromF.actualArr;
+        const slackMins = connectWindow - cx.min_connect_minutes;
+        const isMissed = connectWindow < cx.min_connect_minutes;
+        return {
+          ...cx,
+          status: isMissed ? 'missed' : 'made',
+          isMissed,
+          connectWindow,
+          slackMins,
+        };
+      });
+
+      const airports = dataset.airports.map((ap) => {
+        const hourly = {};
+        for (let h = 5; h <= 23; h++) hourly[h] = 0;
+
+        simulatedFlights.forEach((f) => {
+          if (f.status === 'cancelled') return;
+          if (f.origin === ap.id) {
+            const h = Math.min(23, Math.max(5, Math.floor(f.actualDep / 60)));
+            hourly[h] = (hourly[h] || 0) + 1;
+          }
+          if (f.destination === ap.id) {
+            const h = Math.min(23, Math.max(5, Math.floor(f.actualArr / 60)));
+            hourly[h] = (hourly[h] || 0) + 1;
+          }
+        });
+
+        const peakMovements = Math.max(0, ...Object.values(hourly));
+        const overloadedHours = Object.entries(hourly)
+          .filter(([, cnt]) => cnt > ap.capacity_per_hour)
+          .map(([h]) => Number(h));
+
+        return {
+          ...ap,
+          hourly,
+          peakMovements,
+          overloadedHours,
+          isOverloaded: overloadedHours.length > 0,
+          closure: closures[ap.id] || null,
+        };
+      });
+
+      const flightsDelayed = simulatedFlights.filter((f) => f.status === 'delayed').length;
+      const flightsCancelled = simulatedFlights.filter((f) => f.status === 'cancelled').length;
+      const totalDelayMins = simulatedFlights.reduce((acc, f) => acc + (f.status === 'delayed' ? f.delay : 0), 0);
+      const passengersAffected = simulatedFlights.reduce(
+        (acc, f) => acc + (f.status === 'delayed' || f.status === 'cancelled' ? f.pax : 0),
+        0
+      );
+      const missedConnections = connections.filter((c) => c.isMissed).length;
+      const strandedPax = connections.reduce((acc, c) => acc + (c.isMissed ? c.passengers : 0), 0);
+      const crewBreaches = crews.filter((c) => c.isBreach).length;
+      const maxCrewOverage = Math.max(0, ...crews.map((c) => c.breachMins));
+      const airportOverloads = airports.filter((a) => a.isOverloaded).length;
+
+      return {
+        flights: simulatedFlights,
+        flightMap,
+        crews,
+        connections,
+        airports,
+        kpis: {
+          flightsDelayed,
+          flightsCancelled,
+          totalDelayMins,
+          passengersAffected,
+          missedConnections,
+          strandedPax,
+          crewBreaches,
+          maxCrewOverage,
+          airportOverloads,
+        },
+      };
+    }
+
+    // ============================================================================
+    // 4. RECOVERY ENGINE (RULE-VALIDATED & RANKED)
+    // ============================================================================
+    function scoreKpis(k) {
+      return (
+        k.crewBreaches * 5000 +
+        k.flightsCancelled * 1800 +
+        k.strandedPax * 22 +
+        k.totalDelayMins * 2.5 +
+        k.airportOverloads * 800
+      );
+    }
+
+    function generateRecoveryOptions(dataset, state, currentSim) {
+      const baseScore = scoreKpis(currentSim.kpis);
+      const candidates = [];
+      const usedSpares = new Set((state.spareAssignments || []).map((s) => s.spareId));
+      const freeSpares = dataset.spare_aircraft.filter((s) => !usedSpares.has(s.tail_id));
+
+      const pushCandidate = (id, type, title, subtitle, nextState) => {
+        const nextSim = runSimulation(dataset, nextState);
+        const nextScore = scoreKpis(nextSim.kpis);
+        const improvement = baseScore - nextScore;
+        if (improvement <= 0) return;
+
+        const deltas = {
+          flightsDelayed: nextSim.kpis.flightsDelayed - currentSim.kpis.flightsDelayed,
+          flightsCancelled: nextSim.kpis.flightsCancelled - currentSim.kpis.flightsCancelled,
+          totalDelayMins: nextSim.kpis.totalDelayMins - currentSim.kpis.totalDelayMins,
+          passengersAffected: nextSim.kpis.passengersAffected - currentSim.kpis.passengersAffected,
+          missedConnections: nextSim.kpis.missedConnections - currentSim.kpis.missedConnections,
+          strandedPax: nextSim.kpis.strandedPax - currentSim.kpis.strandedPax,
+          crewBreaches: nextSim.kpis.crewBreaches - currentSim.kpis.crewBreaches,
+          airportOverloads: nextSim.kpis.airportOverloads - currentSim.kpis.airportOverloads,
+        };
+
+        candidates.push({ id, type, title, subtitle, nextState, sim: nextSim, deltas, improvement });
+      };
+
+      freeSpares.forEach((spare) => {
+        const availMins = toMins(spare.available_from);
+        const impactedTails = new Set(
+          currentSim.flights
+            .filter((f) => f.status === 'delayed' || f.status === 'cancelled' || f.isCrewBreach)
+            .map((f) => f.tail_id)
+        );
+
+        impactedTails.forEach((tailId) => {
+          const tailLegs = currentSim.flights
+            .filter((f) => f.tail_id === tailId)
+            .sort((a, b) => a.leg_order - b.leg_order);
+
+          const eligibleLeg = tailLegs.find(
+            (leg) =>
+              leg.origin === spare.base &&
+              leg.schedDep >= availMins &&
+              (leg.status === 'delayed' || leg.status === 'cancelled' || leg.isCrewBreach)
+          );
+
+          if (eligibleLeg) {
+            const nextState = {
+              ...state,
+              spareAssignments: [
+                ...(state.spareAssignments || []),
+                { spareId: spare.tail_id, targetTail: tailId, fromLegOrder: eligibleLeg.leg_order },
+              ],
+            };
+            pushCandidate(
+              `spare-${spare.tail_id}-${tailId}-${eligibleLeg.leg_order}`,
+              'spare',
+              `Deploy Spare ${spare.tail_id} at ${spare.base}`,
+              `Take over ${tailId} from ${eligibleLeg.flight_id} (${eligibleLeg.dep}) with fresh standby crew.`,
+              nextState
+            );
+          }
+        });
+      });
+
+      currentSim.connections
+        .filter((cx) => cx.status === 'missed')
+        .forEach((cx) => {
+          const fromF = currentSim.flightMap[cx.from_flight];
+          const toF = currentSim.flightMap[cx.to_flight];
+          if (!fromF || !toF || fromF.status === 'cancelled' || toF.status === 'cancelled') return;
+
+          const neededHold = cx.min_connect_minutes - cx.connectWindow;
+          if (neededHold > 0 && neededHold <= 60) {
+            const currentHold = (state.retimes || {})[toF.flight_id] || 0;
+            const nextState = {
+              ...state,
+              retimes: { ...(state.retimes || {}), [toF.flight_id]: currentHold + neededHold },
+            };
+            const testSim = runSimulation(dataset, nextState);
+            if (testSim.kpis.crewBreaches <= currentSim.kpis.crewBreaches) {
+              pushCandidate(
+                `hold-${cx.connection_id}-${toF.flight_id}`,
+                'retime',
+                `Hold ${toF.flight_id} by +${neededHold}m at ${cx.airport}`,
+                `Protects ${cx.connection_id} (${cx.passengers} pax from ${cx.from_flight}) without breaching crew duty.`,
+                nextState
+              );
+            }
+          }
+        });
+
+      currentSim.crews
+        .filter((c) => c.isBreach)
+        .forEach((crew) => {
+          const activeLegs = crew.flight_ids
+            .map((id) => currentSim.flightMap[id])
+            .filter((f) => f && f.status !== 'cancelled' && !f.isSpareOperated);
+          const lastLeg = activeLegs[activeLegs.length - 1];
+          if (lastLeg) {
+            const nextState = {
+              ...state,
+              cancelledFlights: Array.from(new Set([...(state.cancelledFlights || []), lastLeg.flight_id])),
+            };
+            pushCandidate(
+              `cancel-${lastLeg.flight_id}`,
+              'cancel',
+              `Cancel ${lastLeg.flight_id} (${lastLeg.origin}→${lastLeg.destination})`,
+              `Eliminates ${crew.crew_id} +${crew.breachMins}m duty breach; affects ${lastLeg.pax} pax.`,
+              nextState
+            );
+          }
+        });
+
+      return candidates.sort((a, b) => b.improvement - a.improvement).slice(0, 6);
+    }
+
+    // ============================================================================
+    // 5. BUILT-IN ENGINE UNIT TEST SUITE (HAND-CALCULATED ASSERTIONS)
+    // ============================================================================
+    function runEngineSelfTests() {
+      const results = [];
+
+      const baseSim = runSimulation(FLIGHT_NETWORK, EMPTY_STATE);
+      results.push({
+        name: 'Baseline schedule has zero delays, breaches & missed transfers',
+        pass:
+          baseSim.kpis.flightsDelayed === 0 &&
+          baseSim.kpis.crewBreaches === 0 &&
+          baseSim.kpis.missedConnections === 0,
+        detail: `Delayed=${baseSim.kpis.flightsDelayed}, Breaches=${baseSim.kpis.crewBreaches}, Missed=${baseSim.kpis.missedConnections}`,
+      });
+
+      const ds03Sim = runSimulation(FLIGHT_NETWORK, { ...EMPTY_STATE, flightDelays: { DS0301: 90 } });
+      const cr03 = ds03Sim.crews.find((c) => c.crew_id === 'CR03');
+      const ds0304 = ds03Sim.flightMap['DS0304'];
+      results.push({
+        name: 'VT-DS03 +90m cascades (+90/+85/+80/+75m) & triggers CR03 +65m breach',
+        pass:
+          ds03Sim.kpis.totalDelayMins === 330 &&
+          ds0304.actualArr === toMins('22:35') &&
+          cr03.breachMins === 65,
+        detail: `TotalDelay=${ds03Sim.kpis.totalDelayMins}m (exp 330m), DS0304 Arr=${toHHMM(ds0304.actualArr)} (exp 22:35), CR03=+${cr03.breachMins}m`,
+      });
+
+      const ds08Sim = runSimulation(FLIGHT_NETWORK, { ...EMPTY_STATE, flightDelays: { DS0801: 45 } });
+      const cx12 = ds08Sim.connections.find((c) => c.connection_id === 'CX12');
+      const cr08 = ds08Sim.crews.find((c) => c.crew_id === 'CR08');
+      results.push({
+        name: 'DS0801 +45m breaks CX12 (20m < 45m) & breaches CR08 (+5m)',
+        pass: cx12.isMissed && cx12.connectWindow === 20 && cr08.breachMins === 5,
+        detail: `CX12 gap=${cx12.connectWindow}m (min 45m, missed=${cx12.isMissed}), CR08=+${cr08.breachMins}m`,
+      });
+
+      const recOpts = generateRecoveryOptions(
+        FLIGHT_NETWORK,
+        { ...EMPTY_STATE, flightDelays: { DS0301: 90 } },
+        ds03Sim
+      );
+      const topOpt = recOpts[0];
+      results.push({
+        name: 'Recovery ranks Spare VT-DS18 (DEL) #1 and clears CR03 breach',
+        pass: Boolean(topOpt && topOpt.id.includes('VT-DS18') && topOpt.sim.kpis.crewBreaches === 0),
+        detail: topOpt
+          ? `#1=${topOpt.title}, After Breaches=${topOpt.sim.kpis.crewBreaches}, Delay=${topOpt.sim.kpis.totalDelayMins}m`
+          : 'No recovery generated',
+      });
+
+      const fogSim = runSimulation(FLIGHT_NETWORK, {
+        ...EMPTY_STATE,
+        airportClosures: { DEL: { start: 360, end: 600 } },
+      });
+      const ds0201 = fogSim.flightMap['DS0201'];
+      const ds0101 = fogSim.flightMap['DS0101'];
+      results.push({
+        name: 'DEL 06:00–10:00 fog closure holds DS0201 & DS0101 until 10:00',
+        pass: ds0201.actualDep === 600 && ds0101.actualDep === 600,
+        detail: `DS0201 dep=${toHHMM(ds0201.actualDep)} (+${ds0201.delay}m), DS0101 dep=${toHHMM(ds0101.actualDep)} (+${ds0101.delay}m)`,
+      });
+
+      return results;
+    }
+
+    // ============================================================================
+    // 6. SUB-COMPONENTS (SPACIOUS OBSIDIAN & CHAMPAGNE GOLD UI)
+    // ============================================================================
+    function KpiItem({ title, value, subtext, severity, delta, inverseDelta = true }) {
+      const dotColor = {
+        neutral: 'bg-[#71717A]',
+        good: 'bg-[#34D399]',
+        warn: 'bg-[#E3B987]',
+        danger: 'bg-[#E14949] animate-pulse',
+      }[severity || 'neutral'];
+
+      const valueColor = {
+        neutral: 'text-[#F5F5F7]',
+        good: 'text-[#F5F5F7]',
+        warn: 'text-[#F2D6B3]',
+        danger: 'text-[#FCA5A5]',
+      }[severity || 'neutral'];
+
+      const hasDelta = typeof delta === 'number' && delta !== 0;
+      const isGoodDelta = inverseDelta ? delta < 0 : delta > 0;
+
+      return (
+        <div className="px-4 py-3 flex flex-col justify-center min-w-0">
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`} />
+            <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-[#8E8E98] truncate">
+              {title}
+            </span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className={`text-xl font-semibold font-mono tabular-nums tracking-tight ${valueColor}`}>
+              {value}
+            </span>
+            {hasDelta && (
+              <span
+                className={`text-[10px] font-mono tabular-nums font-bold px-1.5 py-0.5 rounded-sm ${
+                  isGoodDelta ? 'bg-[#F2D6B3] text-[#0A0A0B]' : 'bg-[#E14949]/25 text-[#FCA5A5]'
+                }`}
+              >
+                {delta > 0 ? `+${delta}` : delta}
+              </span>
+            )}
+          </div>
+          <div className="text-[11px] text-[#6E6E78] mt-0.5 truncate">{subtext}</div>
+        </div>
+      );
+    }
+
+    function DominoCascadeStrip({ sim, selectedFlightId, onSelectFlight, expanded, onToggle }) {
+      const selected = sim.flightMap[selectedFlightId] || sim.flights[0];
+      if (!selected) return null;
+
+      const tailLegs = sim.flights
+        .filter((f) => f.tail_id === selected.tail_id)
+        .sort((a, b) => a.leg_order - b.leg_order);
+      const crew = sim.crews.find((c) => c.tail_id === selected.tail_id);
+
+      const tailConnMap = {};
+      sim.connections.forEach((cx) => {
+        if (tailLegs.some((l) => l.flight_id === cx.from_flight)) {
+          if (!tailConnMap[cx.from_flight]) tailConnMap[cx.from_flight] = [];
+          tailConnMap[cx.from_flight].push(cx);
+        }
+      });
+
+      return (
+        <div className="bg-[#121216] border border-[#222229] rounded-lg overflow-hidden">
+          <button
+            type="button"
+            onClick={onToggle}
+            className="w-full px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 hover:bg-[#17171D] transition-colors cursor-pointer text-left"
+          >
+            <div className="flex items-center gap-2.5">
+              <Radio className="w-3.5 h-3.5 text-[#E3B987]" />
+              <span className="text-xs font-semibold text-[#F5F5F7]">
+                Domino Chain · <span className="font-mono text-[#F2D6B3]">{selected.tail_id}</span>
+              </span>
+              <span className="text-xs text-[#71717A] font-mono">
+                {tailLegs.map((l) => l.origin).join(' → ')} → {tailLegs[tailLegs.length - 1]?.destination}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {crew?.isBreach ? (
+                <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-[#E14949]/20 text-[#FCA5A5]">
+                  {crew.crew_id} +{crew.breachMins}m over limit
+                </span>
+              ) : (
+                <span className="text-[11px] font-mono text-[#8E8E98]">
+                  {crew?.crew_id} · {crew?.headroomMins ?? 0}m buffer
+                </span>
+              )}
+              <span className="text-[11px] text-[#8E8E98] flex items-center gap-1">
+                {expanded ? 'Hide' : 'Inspect'}
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+              </span>
+            </div>
+          </button>
+
+          {expanded && (
+            <div className="px-4 pb-3.5 pt-2 border-t border-[#1E1E25] flex items-center gap-2 overflow-x-auto">
+              {tailLegs.map((leg, idx) => {
+                const isSelected = leg.flight_id === selectedFlightId;
+                const prevLeg = idx > 0 ? tailLegs[idx - 1] : null;
+                const actualTurn =
+                  prevLeg && prevLeg.status !== 'cancelled' && leg.status !== 'cancelled'
+                    ? leg.actualDep - prevLeg.actualArr
+                    : null;
+                const isTightTurn = actualTurn !== null && actualTurn <= 35;
+                const outboundConns = tailConnMap[leg.flight_id] || [];
+
+                let cardTone = 'bg-[#18191F] border-[#2C2D36] text-[#E5E7EB]';
+                if (leg.status === 'cancelled') {
+                  cardTone = 'bg-[#151519] border-[#2E2E36] text-[#71717A] opacity-75';
+                } else if (leg.isCrewBreach) {
+                  cardTone = 'bg-[#281418] border-[#E14949]/80 text-[#FFFFFF]';
+                } else if (leg.status === 'delayed') {
+                  cardTone = 'bg-[#231B14] border-[#E3B987]/70 text-[#F2D6B3]';
+                } else if (leg.isSpareOperated) {
+                  cardTone = 'bg-[#141D2E] border-[#4E80EE]/70 text-[#DBEAFE]';
+                }
+
+                return (
+                  <React.Fragment key={leg.flight_id}>
+                    {idx > 0 && (
+                      <div className="flex flex-col items-center shrink-0 px-1">
+                        <span
+                          className={`text-[10px] font-mono tabular-nums ${
+                            isTightTurn && leg.delay > 0 ? 'text-[#F2D6B3] font-bold' : 'text-[#6E6E78]'
+                          }`}
+                        >
+                          {actualTurn === null ? '—' : `${actualTurn}m`}
+                        </span>
+                        <ChevronRight
+                          className={`w-3.5 h-3.5 ${
+                            isTightTurn && leg.delay > 0 ? 'text-[#E3B987]' : 'text-[#3F3F48]'
+                          }`}
+                        />
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => onSelectFlight(leg.flight_id)}
+                      className={`shrink-0 min-w-[148px] rounded-md border px-3 py-2 text-left transition-all cursor-pointer ${cardTone} ${
+                        isSelected ? 'ring-1 ring-[#F2D6B3] border-[#F2D6B3]' : 'hover:border-[#4A4A56]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-[11px] font-bold">{leg.flight_id}</span>
+                        {leg.status === 'cancelled' ? (
+                          <span className="text-[10px] font-mono text-[#A1A1AA]">CXL</span>
+                        ) : leg.delay > 0 ? (
+                          <span
+                            className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-sm ${
+                              leg.isCrewBreach ? 'bg-[#E14949] text-white' : 'bg-[#F2D6B3] text-[#0A0A0B]'
+                            }`}
+                          >
+                            +{leg.delay}m
+                          </span>
+                        ) : (
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#34D399]" />
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between font-mono text-xs font-semibold mt-1">
+                        <span>{leg.origin} → {leg.destination}</span>
+                        <span className="text-[10px] font-normal opacity-70">{leg.pax}p</span>
+                      </div>
+
+                      <div className="text-[10px] font-mono tabular-nums opacity-70 mt-0.5">
+                        {leg.status === 'cancelled'
+                          ? `${leg.dep}–${leg.arr}`
+                          : `${toHHMM(leg.actualDep)}–${toHHMM(leg.actualArr)}`}
+                      </div>
+
+                      {outboundConns.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5 pt-1.5 border-t border-white/10">
+                          {outboundConns.map((cx) => (
+                            <span
+                              key={cx.connection_id}
+                              className={`text-[9px] font-mono px-1.5 py-0.5 rounded-sm ${
+                                cx.isMissed
+                                  ? 'bg-[#E14949] text-white font-semibold'
+                                  : 'bg-[#192420] text-[#6EE7B7]'
+                              }`}
+                            >
+                              {cx.connection_id} {cx.isMissed ? '✕' : '✓'} {cx.passengers}p
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </button>
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const GANTT_START = 300;
+    const GANTT_END = 1440;
+    const GANTT_SPAN = GANTT_END - GANTT_START;
+
+    function GanttTimeline({ sim, state, selectedFlightId, onSelectFlight }) {
+      const [hoveredFlight, setHoveredFlight] = useState(null);
+      const [fleetFilter, setFleetFilter] = useState('all');
+
+      const hours = useMemo(() => {
+        const arr = [];
+        for (let h = 5; h <= 24; h++) arr.push(h);
+        return arr;
+      }, []);
+
+      const connFlightIds = useMemo(() => {
+        const missed = new Set();
+        sim.connections.forEach((c) => {
+          if (c.isMissed) {
+            missed.add(c.from_flight);
+            missed.add(c.to_flight);
+          }
+        });
+        return missed;
+      }, [sim.connections]);
+
+      const allRows = useMemo(() => {
+        const baseTails = FLIGHT_NETWORK.crews.map((c) => c.tail_id);
+        const activeSpares = (state.spareAssignments || []).map((s) => s.spareId);
+        const allTails = [...baseTails, ...Array.from(new Set(activeSpares))];
+
+        return allTails.map((tailId) => {
+          const isSpare = tailId === 'VT-DS17' || tailId === 'VT-DS18';
+          const flights = sim.flights
+            .filter((f) => f.effectiveTail === tailId)
+            .sort((a, b) => a.schedDep - b.schedDep);
+          const crew = sim.crews.find((c) => c.tail_id === tailId) || null;
+          const isAog = state.aogTails?.[tailId] != null;
+          const isImpacted =
+            isSpare ||
+            isAog ||
+            Boolean(crew?.isBreach) ||
+            flights.some((f) => f.status === 'delayed' || f.status === 'cancelled');
+          const isCrewRisk = Boolean(crew && (crew.isBreach || crew.utilizationPct >= 95));
+          return { tailId, isSpare, flights, crew, isAog, isImpacted, isCrewRisk };
+        });
+      }, [sim, state]);
+
+      const rows = useMemo(() => {
+        if (fleetFilter === 'impacted') return allRows.filter((r) => r.isImpacted);
+        if (fleetFilter === 'crew_risk') return allRows.filter((r) => r.isCrewRisk);
+        return allRows;
+      }, [allRows, fleetFilter]);
+
+      const impactedCount = useMemo(() => allRows.filter((r) => r.isImpacted).length, [allRows]);
+      const crewRiskCount = useMemo(() => allRows.filter((r) => r.isCrewRisk).length, [allRows]);
+
+      const toPct = (mins) => Math.max(0, Math.min(100, ((mins - GANTT_START) / GANTT_SPAN) * 100));
+
+      return (
+        <div className="flex flex-col h-full bg-[#121216] border border-[#222229] rounded-lg overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-[#15151A] border-b border-[#222229]">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1 bg-[#0C0C0F] p-0.5 rounded-md border border-[#24242C] text-[11px]">
+                {[
+                  { id: 'all', label: `All Aircraft (${allRows.length})` },
+                  { id: 'impacted', label: `Impacted (${impactedCount})` },
+                  { id: 'crew_risk', label: `Crew ≥95% (${crewRiskCount})` },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setFleetFilter(f.id)}
+                    className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
+                      fleetFilter === f.id
+                        ? 'bg-[#F2D6B3] text-[#0A0A0B] font-semibold'
+                        : 'text-[#8E8E98] hover:text-[#F5F5F7]'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4 text-[11px] text-[#9A9AA6]">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#34D399]" /> On Time
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#E3B987]" /> Delayed
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#E14949]" /> Crew Breach
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-sm border border-[#52525B]" style={CANCELLED_HATCH_STYLE} /> Cancelled
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#4E80EE]" /> Spare
+              </span>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-auto relative bg-[#0C0C0F]">
+            {rows.length === 0 ? (
+              <div className="h-64 flex flex-col items-center justify-center text-center px-4">
+                <Filter className="w-5 h-5 text-[#52525B] mb-2" />
+                <div className="text-xs text-[#A1A1AA]">No aircraft match this filter</div>
+                <button
+                  type="button"
+                  onClick={() => setFleetFilter('all')}
+                  className="mt-2 text-xs text-[#F2D6B3] hover:underline cursor-pointer"
+                >
+                  Show all aircraft
+                </button>
+              </div>
+            ) : (
+              <div className="min-w-[820px]">
+                <div className="sticky top-0 z-20 flex items-center bg-[#141419]/95 backdrop-blur border-b border-[#222229] text-[10px] font-mono tabular-nums text-[#71717A]">
+                  <div className="w-28 shrink-0 px-3.5 py-2.5 border-r border-[#222229] font-semibold uppercase tracking-wider text-[#A1A1AA]">
+                    Tail
+                  </div>
+                  <div className="flex-1 relative h-8">
+                    {hours.map((h) => {
+                      if (h % 2 !== 0 && h !== 5 && h !== 24) return null;
+                      const left = toPct(h * 60);
+                      return (
+                        <div
+                          key={h}
+                          className="absolute top-0 bottom-0 flex items-center border-l border-[#1E1E25] pl-1.5"
+                          style={{ left: `${left}%` }}
+                        >
+                          {h < 24 ? `${String(h).padStart(2, '0')}:00` : ''}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="w-36 shrink-0 px-3.5 py-2.5 border-l border-[#222229] font-semibold uppercase tracking-wider text-[#A1A1AA] text-right">
+                    Crew Duty
+                  </div>
+                </div>
+
+                <div className="divide-y divide-[#18181F]">
+                  {rows.map(({ tailId, isSpare, flights, crew, isAog }) => (
+                    <div
+                      key={tailId}
+                      className={`flex items-center h-[52px] transition-colors ${
+                        isSpare
+                          ? 'bg-[#4E80EE]/[0.06]'
+                          : isAog
+                          ? 'bg-[#E14949]/[0.06]'
+                          : 'hover:bg-[#14141A]'
+                      }`}
+                    >
+                      <div className="w-28 shrink-0 px-3.5 border-r border-[#1E1E25] flex flex-col justify-center">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`font-mono text-xs font-semibold ${
+                              isSpare ? 'text-[#60A5FA]' : 'text-[#F5F5F7]'
+                            }`}
+                          >
+                            {tailId}
+                          </span>
+                          {isAog && (
+                            <span className="text-[9px] font-mono font-bold px-1 rounded-sm bg-[#E14949]/20 text-[#FCA5A5]">
+                              AOG
+                            </span>
+                          )}
+                          {isSpare && (
+                            <span className="text-[9px] font-mono font-bold px-1 rounded-sm bg-[#4E80EE]/25 text-[#93C5FD]">
+                              SPARE
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-[#6E6E78] font-mono">
+                          {crew ? `${crew.crew_id} · ${crew.base}` : 'Standby'}
+                        </span>
+                      </div>
+
+                      <div className="flex-1 relative h-full">
+                        {hours.map((h) =>
+                          h % 2 === 0 ? (
+                            <div
+                              key={h}
+                              className="absolute top-0 bottom-0 border-l border-[#16161C] pointer-events-none"
+                              style={{ left: `${toPct(h * 60)}%` }}
+                            />
+                          ) : null
+                        )}
+
+                        {Object.entries(state.airportClosures || {}).map(([ap, win]) => (
+                          <div
+                            key={ap}
+                            className="absolute top-0 bottom-0 bg-[#E3B987]/[0.07] border-x border-[#E3B987]/30 pointer-events-none"
+                            style={{
+                              left: `${toPct(win.start)}%`,
+                              width: `${Math.max(0.5, toPct(win.end) - toPct(win.start))}%`,
+                            }}
+                          />
+                        ))}
+
+                        {flights.map((f, idx) => {
+                          if (idx === 0 || f.status === 'cancelled') return null;
+                          const prev = flights[idx - 1];
+                          if (!prev || prev.status === 'cancelled') return null;
+                          const gap = f.actualDep - prev.actualArr;
+                          const left = toPct(prev.actualArr);
+                          const width = Math.max(0.2, toPct(f.actualDep) - left);
+                          const isCompressed = gap <= 32 && f.delay > 0;
+                          return (
+                            <div
+                              key={`turn-${f.flight_id}`}
+                              className={`absolute top-1/2 -translate-y-1/2 h-[2px] pointer-events-none ${
+                                isCompressed ? 'bg-[#E3B987]' : 'bg-[#25252E]'
+                              }`}
+                              style={{ left: `${left}%`, width: `${width}%` }}
+                            />
+                          );
+                        })}
+
+                        {flights.map((f) => {
+                          const isSelected = f.flight_id === selectedFlightId;
+                          const schedLeft = toPct(f.schedDep);
+                          const schedWidth = Math.max(1.2, toPct(f.schedArr) - schedLeft);
+                          const actLeft = toPct(f.actualDep);
+                          const actWidth = Math.max(1.6, toPct(f.actualArr) - actLeft);
+                          const hasMissedConn = connFlightIds.has(f.flight_id);
+
+                          let barClass =
+                            'bg-[#232730] hover:bg-[#2C313D] border-[#3F4654] text-[#E5E7EB]';
+                          let barExtraStyle = {};
+
+                          if (f.status === 'cancelled') {
+                            barClass = 'border-[#3F3F48] text-[#71717A] line-through opacity-85 hover:opacity-100';
+                            barExtraStyle = CANCELLED_HATCH_STYLE;
+                          } else if (f.isCrewBreach) {
+                            barClass =
+                              'bg-[#E14949] hover:brightness-110 border-[#FCA5A5] text-[#FFFFFF] shadow-[0_0_12px_rgba(225,73,73,0.45)]';
+                          } else if (f.status === 'delayed') {
+                            barClass =
+                              'bg-[#D9A773] hover:brightness-105 border-[#F2D6B3] text-[#0A0A0B] font-semibold';
+                          } else if (f.isSpareOperated) {
+                            barClass =
+                              'bg-[#4E80EE] hover:brightness-110 border-[#93C5FD] text-[#FFFFFF] font-medium';
+                          }
+
+                          return (
+                            <React.Fragment key={f.flight_id}>
+                              {f.status === 'delayed' && (
+                                <div
+                                  className="absolute top-3.5 bottom-3.5 rounded-sm border border-dashed border-[#52525B]/50 pointer-events-none"
+                                  style={{ left: `${schedLeft}%`, width: `${schedWidth}%` }}
+                                />
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => onSelectFlight(f.flight_id)}
+                                onMouseEnter={() => setHoveredFlight(f)}
+                                onMouseLeave={() => setHoveredFlight(null)}
+                                className={`absolute top-2.5 bottom-2.5 rounded border px-1.5 flex items-center justify-between gap-1 text-[10px] font-mono tabular-nums overflow-hidden transition-all cursor-pointer ${barClass} ${
+                                  isSelected
+                                    ? 'ring-2 ring-[#F2D6B3] ring-offset-1 ring-offset-[#0C0C0F] z-10'
+                                    : 'z-0'
+                                }`}
+                                style={{
+                                  left: `${actLeft}%`,
+                                  width: `${actWidth}%`,
+                                  ...barExtraStyle,
+                                }}
+                                title={`${f.flight_id}: ${f.origin}→${f.destination} | ${toHHMM(f.actualDep)}-${toHHMM(f.actualArr)}`}
+                              >
+                                <span className="truncate flex items-center gap-1">
+                                  {hasMissedConn && (
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#E14949] ring-1 ring-white shrink-0" />
+                                  )}
+                                  {f.origin}-{f.destination}
+                                </span>
+                                {f.delay > 0 && f.status !== 'cancelled' && (
+                                  <span
+                                    className={`text-[9px] px-1 rounded-sm shrink-0 font-bold ${
+                                      f.isCrewBreach ? 'bg-black/30 text-white' : 'bg-black/20 text-[#0A0A0B]'
+                                    }`}
+                                  >
+                                    +{f.delay}
+                                  </span>
+                                )}
+                              </button>
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+
+                      <div className="w-36 shrink-0 px-3.5 border-l border-[#1E1E25] flex flex-col justify-center">
+                        {crew ? (
+                          <>
+                            <div className="flex items-center justify-between text-[10px] font-mono tabular-nums mb-1.5">
+                              <span
+                                className={
+                                  crew.isBreach
+                                    ? 'text-[#FCA5A5] font-semibold'
+                                    : crew.utilizationPct >= 95
+                                    ? 'text-[#F2D6B3]'
+                                    : 'text-[#A1A1AA]'
+                                }
+                              >
+                                {crew.dutyMins}m
+                              </span>
+                              <span
+                                className={
+                                  crew.isBreach
+                                    ? 'text-[#E14949] font-bold'
+                                    : crew.utilizationPct >= 95
+                                    ? 'text-[#E3B987]'
+                                    : 'text-[#6E6E78]'
+                                }
+                              >
+                                {crew.isBreach ? `+${crew.breachMins}m` : `${crew.utilizationPct}%`}
+                              </span>
+                            </div>
+                            <div className="h-1.5 w-full rounded-full bg-[#1C1C23] overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-300 ${
+                                  crew.isBreach
+                                    ? 'bg-[#E14949]'
+                                    : crew.utilizationPct >= 95
+                                    ? 'bg-[#E3B987]'
+                                    : 'bg-[#525A69]'
+                                }`}
+                                style={{ width: `${Math.min(100, crew.utilizationPct)}%` }}
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <span className="text-[10px] font-mono text-[#60A5FA] text-right">
+                            Fresh Crew
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="px-4 py-2.5 bg-[#15151A] border-t border-[#222229] text-xs flex items-center justify-between gap-4 min-h-[40px]">
+            {hoveredFlight ? (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono tabular-nums text-[11px]">
+                <span className="font-bold text-[#F2D6B3]">{hoveredFlight.flight_id}</span>
+                <span className="text-[#F5F5F7]">
+                  {hoveredFlight.origin} → {hoveredFlight.destination}
+                </span>
+                <span className="text-[#8E8E98]">
+                  Sched {hoveredFlight.dep}–{hoveredFlight.arr}
+                </span>
+                <span className="text-[#F5F5F7]">
+                  Actual{' '}
+                  {hoveredFlight.status === 'cancelled'
+                    ? 'CANCELLED'
+                    : `${toHHMM(hoveredFlight.actualDep)}–${toHHMM(hoveredFlight.actualArr)}`}
+                </span>
+                <span className="text-[#8E8E98]">{hoveredFlight.pax} pax</span>
+                {hoveredFlight.delay > 0 && (
+                  <span className="text-[#E3B987] font-semibold">+{hoveredFlight.delay}m</span>
+                )}
+                {hoveredFlight.isCrewBreach && (
+                  <span className="text-[#E14949] font-semibold">● Crew Breach</span>
+                )}
+              </div>
+            ) : (
+              <span className="text-[#6E6E78] text-xs">
+                Click any flight bar to inspect or inject a delay · Hover for live timing
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    function NetworkRadarMap({ sim, onSelectFlight }) {
+      const [selectedAirportId, setSelectedAirportId] = useState('DEL');
+
+      const project = useCallback((lat, lng) => {
+        const x = ((lng - 68.0) / (95.5 - 68.0)) * 560 + 20;
+        const y = ((33.5 - lat) / (33.5 - 7.0)) * 560 + 20;
+        return { x, y };
+      }, []);
+
+      const airportMap = useMemo(() => {
+        const m = {};
+        sim.airports.forEach((a) => {
+          m[a.id] = { ...a, ...project(a.lat, a.lng) };
+        });
+        return m;
+      }, [sim.airports, project]);
+
+      const routes = useMemo(() => {
+        const map = {};
+        sim.flights.forEach((f) => {
+          const key = [f.origin, f.destination].sort().join('-');
+          if (!map[key]) {
+            map[key] = { key, a: f.origin, b: f.destination, flights: [], worst: 'on_time', maxDelay: 0 };
+          }
+          map[key].flights.push(f);
+          if (f.delay > map[key].maxDelay) map[key].maxDelay = f.delay;
+          if (f.status === 'cancelled') map[key].worst = 'cancelled';
+          else if (f.isCrewBreach && map[key].worst !== 'cancelled') map[key].worst = 'breach';
+          else if (f.status === 'delayed' && map[key].worst === 'on_time') map[key].worst = 'delayed';
+        });
+        return Object.values(map);
+      }, [sim.flights]);
+
+      const selectedAirport = airportMap[selectedAirportId] || sim.airports[0];
+      const airportFlights = useMemo(
+        () =>
+          sim.flights
+            .filter((f) => f.origin === selectedAirport?.id || f.destination === selectedAirport?.id)
+            .sort((a, b) => a.actualDep - b.actualDep),
+        [sim.flights, selectedAirport]
+      );
+
+      const indiaOutlinePoints = useMemo(() => {
+        const coords = [
+          [32.8, 74.8], [32.2, 77.5], [30.0, 80.2], [27.8, 83.5], [27.2, 88.2],
+          [27.8, 92.0], [26.8, 95.0], [24.2, 93.2], [22.0, 89.0], [21.5, 87.2],
+          [19.5, 85.2], [16.5, 82.2], [13.0, 80.3], [10.0, 79.2], [8.1, 77.5],
+          [9.5, 76.2], [12.8, 74.8], [15.5, 73.7], [19.0, 72.8], [21.5, 72.6],
+          [22.5, 69.0], [24.0, 70.8], [26.8, 70.5], [29.8, 73.8], [32.8, 74.8],
+        ];
+        return coords
+          .map(([la, ln]) => {
+            const p = project(la, ln);
+            return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+          })
+          .join(' ');
+      }, [project]);
+
+      const radarCenter = project(20.5, 79.0);
+
+      return (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 h-full">
+          <div className="lg:col-span-8 bg-[#121216] border border-[#222229] rounded-lg overflow-hidden flex flex-col">
+            <div className="px-4 py-3 bg-[#15151A] border-b border-[#222229] flex items-center justify-between text-xs">
+              <span className="font-semibold text-[#F2D6B3] flex items-center gap-2">
+                <MapIcon className="w-3.5 h-3.5 text-[#E3B987]" />
+                Network Radar · 16 Stations
+              </span>
+              <div className="flex items-center gap-4 text-[11px] text-[#9A9AA6]">
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#64748B]" /> On Time</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#E3B987]" /> Delayed</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#E14949]" /> Breach / CXL</span>
+              </div>
+            </div>
+            <div className="flex-1 flex items-center justify-center p-2 relative min-h-[440px] bg-[#09090C]">
+              <svg viewBox="0 0 600 600" className="w-full h-full max-h-[540px] select-none">
+                <defs>
+                  <radialGradient id="obsidianRadar" cx="50%" cy="50%" r="55%">
+                    <stop offset="0%" stopColor="#1A1816" />
+                    <stop offset="55%" stopColor="#101014" />
+                    <stop offset="100%" stopColor="#08080A" />
+                  </radialGradient>
+                  <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%">
+                    <feGaussianBlur stdDeviation="3" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
+                <rect width="600" height="600" fill="url(#obsidianRadar)" />
+
+                {[85, 165, 245].map((r) => (
+                  <circle
+                    key={r}
+                    cx={radarCenter.x}
+                    cy={radarCenter.y}
+                    r={r}
+                    fill="none"
+                    stroke="#2A2622"
+                    strokeWidth="0.9"
+                    strokeDasharray="4 6"
+                  />
+                ))}
+
+                <line x1={radarCenter.x} y1="15" x2={radarCenter.x} y2="585" stroke="#222228" strokeWidth="0.7" />
+                <line x1="15" y1={radarCenter.y} x2="585" y2={radarCenter.y} stroke="#222228" strokeWidth="0.7" />
+
+                <polygon
+                  points={indiaOutlinePoints}
+                  fill="#141419"
+                  stroke="#48443E"
+                  strokeWidth="1.4"
+                  strokeLinejoin="round"
+                />
+
+                {routes.map((r) => {
+                  const p1 = airportMap[r.a];
+                  const p2 = airportMap[r.b];
+                  if (!p1 || !p2) return null;
+                  const mx = (p1.x + p2.x) / 2;
+                  const my = (p1.y + p2.y) / 2 - 16;
+                  const stroke =
+                    r.worst === 'cancelled' || r.worst === 'breach'
+                      ? '#E14949'
+                      : r.worst === 'delayed'
+                      ? '#E3B987'
+                      : '#64748B';
+                  const opacity = r.worst === 'on_time' ? 0.35 : 0.92;
+                  const width = r.worst === 'on_time' ? 1.4 : 2.6;
+
+                  return (
+                    <g key={r.key}>
+                      <path
+                        d={`M ${p1.x} ${p1.y} Q ${mx} ${my} ${p2.x} ${p2.y}`}
+                        fill="none"
+                        stroke={stroke}
+                        strokeWidth={width}
+                        strokeOpacity={opacity}
+                        strokeDasharray={r.worst === 'cancelled' ? '5 4' : undefined}
+                        filter={r.worst !== 'on_time' ? 'url(#softGlow)' : undefined}
+                      />
+                      {r.worst !== 'on_time' && (
+                        <circle cx={mx} cy={my + 6} r="3" fill={stroke} opacity="0.9" />
+                      )}
+                    </g>
+                  );
+                })}
+
+                {Object.values(airportMap).map((ap) => {
+                  const isSelected = ap.id === selectedAirportId;
+                  const radius = ap.tier === 'mega_hub' ? 7 : ap.tier === 'regional_hub' ? 5.2 : 4;
+                  const isClosed = Boolean(ap.closure);
+                  const fill = isClosed
+                    ? '#E14949'
+                    : ap.isOverloaded
+                    ? '#C88A5B'
+                    : ap.tier === 'mega_hub'
+                    ? '#F2D6B3'
+                    : '#94A3B8';
+
+                  return (
+                    <g
+                      key={ap.id}
+                      className="cursor-pointer"
+                      onClick={() => setSelectedAirportId(ap.id)}
+                    >
+                      {(isClosed || ap.isOverloaded || isSelected) && (
+                        <circle
+                          cx={ap.x}
+                          cy={ap.y}
+                          r={radius + 7}
+                          fill={isClosed ? '#E14949' : '#F2D6B3'}
+                          fillOpacity="0.14"
+                          stroke={isClosed ? '#E14949' : ap.isOverloaded ? '#C88A5B' : '#F2D6B3'}
+                          strokeWidth="1.5"
+                        />
+                      )}
+                      <circle
+                        cx={ap.x}
+                        cy={ap.y}
+                        r={radius}
+                        fill={fill}
+                        stroke="#0A0A0B"
+                        strokeWidth="1.5"
+                        filter={ap.tier === 'mega_hub' || isClosed ? 'url(#softGlow)' : undefined}
+                      />
+                      <text
+                        x={ap.x + radius + 5}
+                        y={ap.y + 3}
+                        fill={isSelected ? '#F2D6B3' : '#E4E4E7'}
+                        fontSize={ap.tier === 'mega_hub' ? '11.5' : '9.5'}
+                        fontWeight="700"
+                        fontFamily="monospace"
+                      >
+                        {ap.id}
+                      </text>
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
+          </div>
+
+          <div className="lg:col-span-4 bg-[#121216] border border-[#222229] rounded-lg p-4 flex flex-col gap-4 overflow-auto">
+            {selectedAirport && (
+              <>
+                <div className="flex items-start justify-between gap-2 border-b border-[#2A2A30] pb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl font-bold font-mono tracking-wider text-[#F2D6B3]">
+                        {selectedAirport.id}
+                      </span>
+                      <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 bg-[#1E1E24] text-[#D4D4D8] border border-[#3A3A42] font-semibold">
+                        {selectedAirport.tier.replace('_', ' ')}
+                      </span>
+                    </div>
+                    <div className="text-xs text-[#E4E4E7] mt-0.5">{selectedAirport.name}</div>
+                    <div className="text-[11px] text-[#71717A] font-mono">
+                      {selectedAirport.city} · {selectedAirport.lat.toFixed(2)}°N, {selectedAirport.lng.toFixed(2)}°E
+                    </div>
+                  </div>
+                  {selectedAirport.closure && (
+                    <span className="text-[10px] font-mono font-bold px-2 py-1 bg-[#E14949]/20 text-[#FCA5A5] border border-[#E14949]/50">
+                      CLOSED {toHHMM(selectedAirport.closure.start)}–{toHHMM(selectedAirport.closure.end)}
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between text-xs mb-2">
+                    <span className="font-semibold uppercase tracking-wider text-[10px] text-[#A1A1AA]">
+                      Hourly Movements vs Cap
+                    </span>
+                    <span className="font-mono tabular-nums text-[#8E8E98] text-[11px]">
+                      Peak:{' '}
+                      <strong className={selectedAirport.isOverloaded ? 'text-[#E14949]' : 'text-[#F2D6B3]'}>
+                        {selectedAirport.peakMovements}
+                      </strong>{' '}
+                      / {selectedAirport.capacity_per_hour}/hr
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-19 gap-0.5 items-end h-24 bg-[#0B0B0E] p-2 border border-[#2A2A30]">
+                    {Array.from({ length: 19 }, (_, idx) => {
+                      const h = idx + 5;
+                      const count = selectedAirport.hourly[h] || 0;
+                      const cap = selectedAirport.capacity_per_hour;
+                      const pct = Math.min(100, (count / Math.max(cap, 8)) * 100);
+                      const over = count > cap;
+                      const inClosure =
+                        selectedAirport.closure &&
+                        h * 60 >= selectedAirport.closure.start &&
+                        h * 60 < selectedAirport.closure.end;
+                      return (
+                        <div
+                          key={h}
+                          className="flex flex-col items-center h-full justify-end"
+                          title={`${String(h).padStart(2, '0')}:00 — ${count} movs (cap ${cap})`}
+                        >
+                          <div
+                            className={`w-full transition-all ${
+                              inClosure
+                                ? 'bg-[#E14949]/45'
+                                : over
+                                ? 'bg-[#E14949]'
+                                : count > 0
+                                ? 'bg-gradient-to-t from-[#C88A5B] to-[#F2D6B3]'
+                                : 'bg-[#232329]'
+                            }`}
+                            style={{ height: `${Math.max(count > 0 ? 14 : 4, pct)}%` }}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex justify-between text-[9px] font-mono text-[#71717A] mt-1 px-1">
+                    <span>05:00</span>
+                    <span>12:00</span>
+                    <span>18:00</span>
+                    <span>23:00</span>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-auto">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-[#A1A1AA] mb-2">
+                    Station Movements ({airportFlights.length})
+                  </div>
+                  <div className="space-y-1.5 max-h-[260px] overflow-auto pr-1">
+                    {airportFlights.map((f) => (
+                      <button
+                        key={f.flight_id}
+                        type="button"
+                        onClick={() => onSelectFlight(f.flight_id)}
+                        className="w-full text-left px-2.5 py-2 bg-[#18181C] hover:bg-[#222229] border border-[#2A2A30] hover:border-[#E3B987]/50 flex items-center justify-between text-xs font-mono tabular-nums transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              f.status === 'cancelled'
+                                ? 'bg-[#71717A]'
+                                : f.isCrewBreach
+                                ? 'bg-[#E14949]'
+                                : f.status === 'delayed'
+                                ? 'bg-[#E3B987]'
+                                : 'bg-[#34D399]'
+                            }`}
+                          />
+                          <span className="text-[#F2D6B3] font-bold">{f.flight_id}</span>
+                          <span className="text-[#8E8E98]">
+                            {f.origin}→{f.destination}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[#E4E4E7]">
+                            {f.status === 'cancelled' ? 'CXL' : toHHMM(f.actualDep)}
+                          </span>
+                          {f.delay > 0 && f.status !== 'cancelled' && (
+                            <span className="text-[#E3B987] text-[10px] font-bold">+{f.delay}m</span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    function CrewConnectionsView({ sim, onSelectFlight }) {
+      const sortedCrews = useMemo(
+        () => [...sim.crews].sort((a, b) => b.utilizationPct - a.utilizationPct),
+        [sim.crews]
+      );
+
+      const sortedConnections = useMemo(
+        () =>
+          [...sim.connections].sort((a, b) => {
+            if (a.isMissed !== b.isMissed) return a.isMissed ? -1 : 1;
+            return (a.slackMins ?? -999) - (b.slackMins ?? -999);
+          }),
+        [sim.connections]
+      );
+
+      return (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-full overflow-auto">
+          <div className="bg-[#121216] border border-[#222229] rounded-lg overflow-hidden flex flex-col">
+            <div className="px-4 py-3 bg-[#15151A] border-b border-[#222229] flex items-center justify-between text-xs">
+              <span className="font-semibold text-[#F2D6B3] flex items-center gap-2">
+                <ShieldAlert className="w-3.5 h-3.5 text-[#E14949]" />
+                Crew Legal Duty Ceiling (600m Max)
+              </span>
+              <span className="text-[11px] text-[#71717A]">Highest utilization first</span>
+            </div>
+            <div className="overflow-auto max-h-[540px] p-3.5 space-y-2.5">
+              {sortedCrews.map((c) => {
+                const ceilingPct = (600 / 720) * 100;
+                const legalFillPct = Math.min(ceilingPct, (Math.min(c.dutyMins, 600) / 720) * 100);
+                const breachFillPct = c.isBreach ? Math.min(100 - ceilingPct, (c.breachMins / 720) * 100) : 0;
+
+                return (
+                  <div
+                    key={c.crew_id}
+                    className={`p-3 rounded-md border ${
+                      c.isBreach
+                        ? 'bg-[#221316] border-[#E14949]/60'
+                        : c.utilizationPct >= 95
+                        ? 'bg-[#1D1813] border-[#C88A5B]/40'
+                        : 'bg-[#16161B] border-[#22222A]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2 font-mono text-xs">
+                        <span className="font-semibold text-[#F5F5F7]">{c.crew_id}</span>
+                        <span className="text-[#8E8E98]">{c.tail_id}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#0D0D10] text-[#A1A1AA]">
+                          {c.base}
+                        </span>
+                      </div>
+                      <div className="font-mono tabular-nums text-xs font-semibold">
+                        {c.isBreach ? (
+                          <span className="text-[#FCA5A5]">
+                            {c.dutyMins}m <span className="text-[#E14949]">(+{c.breachMins}m)</span>
+                          </span>
+                        ) : (
+                          <span className="text-[#D4D4D8]">
+                            {c.dutyMins}m <span className="text-[#6E6E78] font-normal">/ 600m</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="relative h-2 rounded-full bg-[#0B0B0E] overflow-hidden">
+                      <div
+                        className={`absolute top-0 bottom-0 left-0 transition-all duration-300 ${
+                          c.isBreach
+                            ? 'bg-[#C88A5B]'
+                            : c.utilizationPct >= 95
+                            ? 'bg-[#E3B987]'
+                            : 'bg-[#5A6270]'
+                        }`}
+                        style={{ width: `${legalFillPct}%` }}
+                      />
+                      {breachFillPct > 0 && (
+                        <div
+                          className="absolute top-0 bottom-0 bg-[#E14949]"
+                          style={{ left: `${ceilingPct}%`, width: `${breachFillPct}%` }}
+                        />
+                      )}
+                      <div
+                        className="absolute top-0 bottom-0 w-[2px] bg-[#F2D6B3]"
+                        style={{ left: `${ceilingPct}%` }}
+                        title="600m Legal Duty Limit"
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] font-mono text-[#6E6E78] mt-1.5">
+                      <span>Sign-on {c.duty_start} → Off {toHHMM(c.dutyEnd)}</span>
+                      <span>{c.activeFlightCount} legs</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="bg-[#121216] border border-[#222229] rounded-lg overflow-hidden flex flex-col">
+            <div className="px-4 py-3 bg-[#15151A] border-b border-[#222229] flex items-center justify-between text-xs">
+              <span className="font-semibold text-[#F2D6B3] flex items-center gap-2">
+                <GitMerge className="w-3.5 h-3.5 text-[#E3B987]" />
+                Passenger Transfer Windows (21)
+              </span>
+              <span className="text-[11px] text-[#71717A]">Missed first</span>
+            </div>
+            <div className="overflow-auto max-h-[540px] p-3.5 space-y-2.5">
+              {sortedConnections.map((cx) => {
+                const ratio =
+                  cx.status === 'cancelled'
+                    ? 0
+                    : Math.max(0, Math.min(100, ((cx.connectWindow || 0) / (cx.min_connect_minutes * 2)) * 100));
+                return (
+                  <div
+                    key={cx.connection_id}
+                    className={`p-3 rounded-md border ${
+                      cx.isMissed
+                        ? 'bg-[#221316] border-[#E14949]/60'
+                        : 'bg-[#16161B] border-[#22222A]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2 font-mono text-xs">
+                        <span className="font-semibold text-[#F2D6B3]">{cx.connection_id}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#0D0D10] text-[#D4D4D8]">
+                          {cx.airport}
+                        </span>
+                        <span className="text-[#8E8E98] text-[11px]">{cx.passengers} pax</span>
+                      </div>
+                      <span
+                        className={`text-[10px] font-mono tabular-nums font-semibold px-2 py-0.5 rounded ${
+                          cx.status === 'made'
+                            ? 'bg-[#192420] text-[#6EE7B7]'
+                            : 'bg-[#E14949]/25 text-[#FCA5A5]'
+                        }`}
+                      >
+                        {cx.status === 'made'
+                          ? `Safe +${cx.slackMins}m`
+                          : cx.status === 'cancelled'
+                          ? 'Cancelled'
+                          : `Missed ${cx.slackMins}m`}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 font-mono text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => onSelectFlight(cx.from_flight)}
+                        className="px-2 py-1 rounded bg-[#0D0D10] border border-[#2A2A34] hover:border-[#F2D6B3] text-[#F5F5F7] cursor-pointer shrink-0"
+                      >
+                        {cx.from_flight}
+                      </button>
+                      <div className="flex-1 flex flex-col gap-1">
+                        <div className="h-1.5 w-full rounded-full bg-[#0B0B0E] relative overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${cx.isMissed ? 'bg-[#E14949]' : 'bg-[#34D399]'}`}
+                            style={{ width: `${ratio}%` }}
+                          />
+                          <div className="absolute top-0 bottom-0 left-1/2 w-[1.5px] bg-[#F2D6B3]" />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-[#6E6E78]">
+                          <span>{cx.status === 'cancelled' ? 'Cancelled' : `Gap: ${cx.connectWindow}m`}</span>
+                          <span>Min: {cx.min_connect_minutes}m</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onSelectFlight(cx.to_flight)}
+                        className="px-2 py-1 rounded bg-[#0D0D10] border border-[#2A2A34] hover:border-[#F2D6B3] text-[#F5F5F7] cursor-pointer shrink-0"
+                      >
+                        {cx.to_flight}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ============================================================================
+    // 7. MAIN APPLICATION COMPONENT
+    // ============================================================================
+    function App() {
+      const [simState, setSimState] = useState(EMPTY_STATE);
+      const [history, setHistory] = useState([]);
+      const [activeView, setActiveView] = useState('gantt');
+      const [drawerTab, setDrawerTab] = useState('simulate');
+      const [controlTab, setControlTab] = useState('flight');
+      const [selectedFlightId, setSelectedFlightId] = useState('DS0301');
+      const [hoveredRecoveryId, setHoveredRecoveryId] = useState(null);
+      const [showTestsModal, setShowTestsModal] = useState(false);
+      const [chainExpanded, setChainExpanded] = useState(false);
+
+      const [closureAirport, setClosureAirport] = useState('DEL');
+      const [closureStart, setClosureStart] = useState('06:00');
+      const [closureEnd, setClosureEnd] = useState('10:00');
+
+      const [aogTail, setAogTail] = useState('VT-DS06');
+      const [aogLegOrder, setAogLegOrder] = useState(1);
+
+      const pushState = useCallback((nextStateOrFn) => {
+        setSimState((prev) => {
+          const next = typeof nextStateOrFn === 'function' ? nextStateOrFn(prev) : nextStateOrFn;
+          setHistory((h) => [...h.slice(-24), prev]);
+          return next;
+        });
+      }, []);
+
+      const handleUndo = useCallback(() => {
+        setHistory((h) => {
+          if (h.length === 0) return h;
+          const previous = h[h.length - 1];
+          setSimState(previous);
+          return h.slice(0, -1);
+        });
+      }, []);
+
+      const handleReset = useCallback(() => {
+        setHistory([]);
+        setSimState(EMPTY_STATE);
+        setHoveredRecoveryId(null);
+        setDrawerTab('simulate');
+      }, []);
+
+      const sim = useMemo(() => runSimulation(FLIGHT_NETWORK, simState), [simState]);
+
+      const recoveryOptions = useMemo(
+        () => generateRecoveryOptions(FLIGHT_NETWORK, simState, sim),
+        [simState, sim]
+      );
+
+      const hoveredOption = useMemo(
+        () => recoveryOptions.find((o) => o.id === hoveredRecoveryId) || null,
+        [recoveryOptions, hoveredRecoveryId]
+      );
+
+      const selectedFlight = sim.flightMap[selectedFlightId] || sim.flights[0];
+      const selectedFlightCrew = sim.crews.find((c) => c.tail_id === selectedFlight?.tail_id);
+      const testResults = useMemo(() => (showTestsModal ? runEngineSelfTests() : []), [showTestsModal]);
+
+      const updateFlightDelay = (flightId, mins) => {
+        const val = Math.max(0, Math.min(240, Number(mins) || 0));
+        pushState((prev) => {
+          const nextDelays = { ...prev.flightDelays };
+          if (val === 0) delete nextDelays[flightId];
+          else nextDelays[flightId] = val;
+          return { ...prev, flightDelays: nextDelays };
+        });
+      };
+
+      const toggleCancelFlight = (flightId) => {
+        pushState((prev) => {
+          const exists = prev.cancelledFlights.includes(flightId);
+          return {
+            ...prev,
+            cancelledFlights: exists
+              ? prev.cancelledFlights.filter((id) => id !== flightId)
+              : [...prev.cancelledFlights, flightId],
+          };
+        });
+      };
+
+      const applyAog = () => {
+        pushState((prev) => ({
+          ...prev,
+          aogTails: { ...prev.aogTails, [aogTail]: Number(aogLegOrder) },
+        }));
+      };
+
+      const removeAog = (tailId) => {
+        pushState((prev) => {
+          const next = { ...prev.aogTails };
+          delete next[tailId];
+          return { ...prev, aogTails: next };
+        });
+      };
+
+      const applyClosure = () => {
+        const s = toMins(closureStart);
+        const e = toMins(closureEnd);
+        if (e <= s) return;
+        pushState((prev) => ({
+          ...prev,
+          airportClosures: {
+            ...prev.airportClosures,
+            [closureAirport]: { start: s, end: e },
+          },
+        }));
+      };
+
+      const removeClosure = (apId) => {
+        pushState((prev) => {
+          const next = { ...prev.airportClosures };
+          delete next[apId];
+          return { ...prev, airportClosures: next };
+        });
+      };
+
+      const launchPreset = (preset) => {
+        setHistory((h) => [...h.slice(-24), simState]);
+        setSimState(preset.state);
+        setSelectedFlightId(preset.focusFlight);
+        setHoveredRecoveryId(null);
+        setDrawerTab('recover');
+        setChainExpanded(true);
+      };
+
+      const applyRecovery = (option) => {
+        pushState(option.nextState);
+        setHoveredRecoveryId(null);
+      };
+
+      const k = sim.kpis;
+      const d = hoveredOption?.deltas || null;
+
+      const aogTailLegs = useMemo(
+        () =>
+          FLIGHT_NETWORK.flights
+            .filter((f) => f.tail_id === aogTail)
+            .sort((a, b) => a.leg_order - b.leg_order),
+        [aogTail]
+      );
+
+      const availableSpares = FLIGHT_NETWORK.spare_aircraft.filter(
+        (s) => !(simState.spareAssignments || []).some((a) => a.spareId === s.tail_id)
+      );
+
+      return (
+        <div
+          className="min-h-screen bg-[#0A0A0B] text-[#F5F5F7] flex flex-col font-sans selection:bg-[#F2D6B3]/30 selection:text-[#F2D6B3]"
+          style={{
+            backgroundImage:
+              'radial-gradient(ellipse 60% 35% at 50% 0%, rgba(227, 185, 135, 0.06), transparent 70%)',
+          }}
+        >
+          {/* HEADER */}
+          <header className="sticky top-0 z-30 bg-[#0A0A0B]/92 backdrop-blur-md border-b border-[#1E1E24] px-5 py-3">
+            <div className="max-w-[1640px] mx-auto flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-8 h-8 bg-gradient-to-br from-[#F2D6B3] to-[#C88A5B] flex items-center justify-center"
+                  style={CHAMFER_BTN}
+                >
+                  <Plane className="w-4 h-4 text-[#0A0A0B] -rotate-45" strokeWidth={2.5} />
+                </div>
+                <div>
+                  <h1 className="text-sm font-bold uppercase tracking-[0.2em] text-[#F2D6B3] leading-none">
+                    DOMINO SKY
+                  </h1>
+                  <p className="text-[11px] text-[#71717A] mt-0.5">
+                    Disruption &amp; Recovery Control
+                  </p>
+                </div>
+              </div>
+
+              <nav className="flex items-center gap-1 bg-[#121216] border border-[#222229] rounded-md p-1">
+                {[
+                  { id: 'gantt', label: 'Timeline', icon: CalendarRange },
+                  { id: 'map', label: 'Radar Map', icon: MapIcon },
+                  { id: 'crews', label: 'Crews & Transfers', icon: GitMerge },
+                ].map((v) => {
+                  const Icon = v.icon;
+                  const active = activeView === v.id;
+                  return (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => setActiveView(v.id)}
+                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded text-xs font-medium transition-all cursor-pointer ${
+                        active
+                          ? 'bg-[#F2D6B3] text-[#0A0A0B] font-semibold'
+                          : 'text-[#9A9AA6] hover:text-[#F5F5F7]'
+                      }`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      <span>{v.label}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleUndo}
+                  disabled={history.length === 0}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#121216] hover:bg-[#1B1B22] disabled:opacity-35 disabled:cursor-not-allowed border border-[#26262F] text-xs text-[#E4E4E7] cursor-pointer transition-colors"
+                >
+                  <Undo2 className="w-3.5 h-3.5 text-[#E3B987]" />
+                  <span>Undo</span>
+                  {history.length > 0 && (
+                    <span className="font-mono text-[10px] text-[#F2D6B3]">({history.length})</span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#121216] hover:bg-[#1F1517] border border-[#26262F] hover:border-[#E14949]/50 text-xs text-[#E4E4E7] cursor-pointer transition-colors"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-[#9A9AA6]" />
+                  <span>Reset</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowTestsModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#121216] hover:bg-[#1E1B16] border border-[#E3B987]/40 text-xs font-medium text-[#F2D6B3] cursor-pointer transition-colors"
+                >
+                  <FlaskConical className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Verify</span>
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {/* MAIN WORKSPACE */}
+          <main className="flex-1 max-w-[1640px] w-full mx-auto px-5 py-4 flex flex-col gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-medium text-[#71717A] mr-1">Scenarios:</span>
+                {PRESETS.map((p) => {
+                  const Icon = p.icon;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => launchPreset(p)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#121216] hover:bg-[#1E1A15] border border-[#24242C] hover:border-[#E3B987]/60 text-xs text-[#D4D4D8] hover:text-[#F2D6B3] transition-all cursor-pointer"
+                    >
+                      <Icon className="w-3.5 h-3.5 text-[#E3B987]" />
+                      <span>{p.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="text-[11px] font-mono text-[#71717A] flex items-center gap-2">
+                <Layers className="w-3.5 h-3.5 text-[#60A5FA]" />
+                <span>Spares:</span>
+                <span className="text-[#93C5FD]">
+                  {availableSpares.length > 0
+                    ? availableSpares.map((s) => `${s.tail_id} (${s.base})`).join(', ')
+                    : 'All deployed'}
+                </span>
+              </div>
+            </div>
+
+            {/* UNIFIED 6-KPI RIBBON */}
+            <section className="bg-[#121216] border border-[#222229] rounded-lg grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 divide-y sm:divide-y-0 sm:divide-x divide-[#1E1E26]">
+              <KpiItem
+                title="Flights Delayed"
+                value={k.flightsDelayed}
+                subtext={k.flightsCancelled > 0 ? `${k.flightsCancelled} cancelled` : 'of 70 legs'}
+                severity={k.flightsCancelled > 0 ? 'danger' : k.flightsDelayed > 0 ? 'warn' : 'good'}
+                delta={d?.flightsDelayed}
+              />
+              <KpiItem
+                title="Total Delay"
+                value={formatDuration(k.totalDelayMins)}
+                subtext={`${k.totalDelayMins} mins total`}
+                severity={k.totalDelayMins >= 240 ? 'danger' : k.totalDelayMins > 0 ? 'warn' : 'good'}
+                delta={d?.totalDelayMins}
+              />
+              <KpiItem
+                title="Pax Affected"
+                value={k.passengersAffected.toLocaleString()}
+                subtext="Delayed or cancelled"
+                severity={k.passengersAffected >= 600 ? 'danger' : k.passengersAffected > 0 ? 'warn' : 'good'}
+                delta={d?.passengersAffected}
+              />
+              <KpiItem
+                title="Missed Transfers"
+                value={k.missedConnections}
+                subtext={`${k.strandedPax} stranded pax`}
+                severity={k.missedConnections > 0 ? 'danger' : 'good'}
+                delta={d?.missedConnections}
+              />
+              <KpiItem
+                title="Crew Breaches"
+                value={k.crewBreaches}
+                subtext={k.maxCrewOverage > 0 ? `Max +${k.maxCrewOverage}m over` : 'All 16 crews legal'}
+                severity={k.crewBreaches > 0 ? 'danger' : 'good'}
+                delta={d?.crewBreaches}
+              />
+              <KpiItem
+                title="Hub Overloads"
+                value={k.airportOverloads}
+                subtext={
+                  Object.keys(simState.airportClosures).length > 0
+                    ? `${Object.keys(simState.airportClosures).join(', ')} closed`
+                    : 'Within hourly caps'
+                }
+                severity={
+                  k.airportOverloads > 0 || Object.keys(simState.airportClosures).length > 0
+                    ? 'warn'
+                    : 'good'
+                }
+                delta={d?.airportOverloads}
+              />
+            </section>
+
+            {/* 9/3 MAIN GRID */}
+            <section className="grid grid-cols-1 xl:grid-cols-12 gap-4 flex-1 min-h-0">
+              <div className="xl:col-span-9 flex flex-col gap-3 min-h-[560px]">
+                <DominoCascadeStrip
+                  sim={sim}
+                  selectedFlightId={selectedFlightId}
+                  onSelectFlight={(id) => {
+                    setSelectedFlightId(id);
+                    setControlTab('flight');
+                    setDrawerTab('simulate');
+                  }}
+                  expanded={chainExpanded}
+                  onToggle={() => setChainExpanded((v) => !v)}
+                />
+
+                <div className="flex-1 min-h-[480px]">
+                  {activeView === 'gantt' && (
+                    <GanttTimeline
+                      sim={sim}
+                      state={simState}
+                      selectedFlightId={selectedFlightId}
+                      onSelectFlight={(id) => {
+                        setSelectedFlightId(id);
+                        setControlTab('flight');
+                        setDrawerTab('simulate');
+                      }}
+                    />
+                  )}
+                  {activeView === 'map' && (
+                    <NetworkRadarMap
+                      sim={sim}
+                      onSelectFlight={(id) => {
+                        setSelectedFlightId(id);
+                        setControlTab('flight');
+                        setDrawerTab('simulate');
+                      }}
+                    />
+                  )}
+                  {activeView === 'crews' && (
+                    <CrewConnectionsView
+                      sim={sim}
+                      onSelectFlight={(id) => {
+                        setSelectedFlightId(id);
+                        setControlTab('flight');
+                        setDrawerTab('simulate');
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* 2-TAB INSPECTOR */}
+              <div className="xl:col-span-3 bg-[#121216] border border-[#222229] rounded-lg overflow-hidden flex flex-col min-h-[560px]">
+                <div className="grid grid-cols-2 bg-[#15151A] border-b border-[#222229] p-1.5 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setDrawerTab('simulate')}
+                    className={`flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                      drawerTab === 'simulate'
+                        ? 'bg-[#23232C] text-[#F2D6B3]'
+                        : 'text-[#8E8E98] hover:text-[#F5F5F7]'
+                    }`}
+                  >
+                    <Sliders className="w-3.5 h-3.5" />
+                    Simulate
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDrawerTab('recover')}
+                    className={`flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                      drawerTab === 'recover'
+                        ? 'bg-[#F2D6B3] text-[#0A0A0B]'
+                        : 'text-[#8E8E98] hover:text-[#F5F5F7]'
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Recover
+                    {recoveryOptions.length > 0 && (
+                      <span
+                        className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-full ${
+                          drawerTab === 'recover'
+                            ? 'bg-[#0A0A0B] text-[#F2D6B3]'
+                            : 'bg-[#F2D6B3] text-[#0A0A0B]'
+                        }`}
+                      >
+                        {recoveryOptions.length}
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                {drawerTab === 'simulate' && (
+                  <div className="p-4 flex-1 flex flex-col gap-4 overflow-auto">
+                    <div className="grid grid-cols-3 gap-1 bg-[#0C0C0F] p-1 rounded-md border border-[#222229] text-xs">
+                      {[
+                        { id: 'flight', label: 'Flight' },
+                        { id: 'aog', label: 'Aircraft' },
+                        { id: 'closure', label: 'Airport' },
+                      ].map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setControlTab(t.id)}
+                          className={`py-1.5 rounded font-medium transition-colors cursor-pointer ${
+                            controlTab === t.id
+                              ? 'bg-[#23232C] text-[#F2D6B3]'
+                              : 'text-[#8E8E98] hover:text-[#F5F5F7]'
+                          }`}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {controlTab === 'flight' && selectedFlight && (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-[11px] text-[#8E8E98] mb-1.5">
+                            Selected Flight
+                          </label>
+                          <select
+                            value={selectedFlight.flight_id}
+                            onChange={(e) => setSelectedFlightId(e.target.value)}
+                            className="w-full bg-[#0C0C0F] border border-[#2A2A34] rounded-md px-3 py-2 font-mono text-xs font-semibold text-[#F2D6B3] focus:outline-none focus:border-[#F2D6B3]"
+                          >
+                            {FLIGHT_NETWORK.flights.map((f) => (
+                              <option key={f.flight_id} value={f.flight_id}>
+                                {f.flight_id} · {f.origin} → {f.destination} ({f.dep})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="bg-[#16161C] border border-[#24242D] rounded-lg p-3.5">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-[11px] font-mono text-[#8E8E98]">
+                              {selectedFlight.effectiveTail} · {selectedFlightCrew?.crew_id}
+                            </span>
+                            <span
+                              className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded ${
+                                selectedFlight.status === 'cancelled'
+                                  ? 'bg-[#27272F] text-[#A1A1AA]'
+                                  : selectedFlight.isCrewBreach
+                                  ? 'bg-[#E14949]/25 text-[#FCA5A5]'
+                                  : selectedFlight.status === 'delayed'
+                                  ? 'bg-[#C88A5B]/25 text-[#F2D6B3]'
+                                  : 'bg-[#192420] text-[#6EE7B7]'
+                              }`}
+                            >
+                              {selectedFlight.isCrewBreach
+                                ? 'Crew Breach'
+                                : selectedFlight.status.replace('_', ' ')}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <div className="text-lg font-bold font-mono text-[#F5F5F7]">
+                                {selectedFlight.origin}
+                              </div>
+                              <div className="text-xs font-mono text-[#E3B987]">
+                                {selectedFlight.status === 'cancelled'
+                                  ? selectedFlight.dep
+                                  : toHHMM(selectedFlight.actualDep)}
+                              </div>
+                            </div>
+
+                            <div className="flex-1 flex flex-col items-center px-2">
+                              <span className="text-[10px] font-mono text-[#71717A] mb-1">
+                                {selectedFlight.block_minutes}m
+                              </span>
+                              <div className="w-full flex items-center gap-1">
+                                <div className="h-[1px] flex-1 bg-[#3A3A46]" />
+                                <Plane className="w-3.5 h-3.5 text-[#F2D6B3] rotate-45" />
+                                <div className="h-[1px] flex-1 bg-[#3A3A46]" />
+                              </div>
+                              <span className="text-[10px] font-mono text-[#71717A] mt-1">
+                                {selectedFlight.pax} pax
+                              </span>
+                            </div>
+
+                            <div className="text-right">
+                              <div className="text-lg font-bold font-mono text-[#F5F5F7]">
+                                {selectedFlight.destination}
+                              </div>
+                              <div className="text-xs font-mono text-[#E3B987]">
+                                {selectedFlight.status === 'cancelled'
+                                  ? selectedFlight.arr
+                                  : toHHMM(selectedFlight.actualArr)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-[#D4D4D8]">Departure Delay</span>
+                            <span className="font-mono tabular-nums font-bold text-[#F2D6B3]">
+                              +{simState.flightDelays[selectedFlight.flight_id] || 0} min
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min={0}
+                            max={240}
+                            step={5}
+                            disabled={selectedFlight.status === 'cancelled'}
+                            value={simState.flightDelays[selectedFlight.flight_id] || 0}
+                            onChange={(e) => updateFlightDelay(selectedFlight.flight_id, e.target.value)}
+                            className="w-full accent-[#E3B987] cursor-pointer"
+                          />
+                          <div className="grid grid-cols-6 gap-1">
+                            {[0, 30, 45, 60, 90, 120].map((m) => (
+                              <button
+                                key={m}
+                                type="button"
+                                disabled={selectedFlight.status === 'cancelled'}
+                                onClick={() => updateFlightDelay(selectedFlight.flight_id, m)}
+                                className={`py-1 rounded text-[11px] font-mono tabular-nums border transition-colors cursor-pointer ${
+                                  (simState.flightDelays[selectedFlight.flight_id] || 0) === m
+                                    ? 'bg-[#F2D6B3] border-[#F2D6B3] text-[#0A0A0B] font-bold'
+                                    : 'bg-[#16161C] border-[#262630] text-[#8E8E98] hover:text-[#F5F5F7]'
+                                }`}
+                              >
+                                {m === 0 ? '0' : `+${m}`}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => toggleCancelFlight(selectedFlight.flight_id)}
+                          className={`w-full py-2.5 rounded-md text-xs font-semibold border flex items-center justify-center gap-2 transition-colors cursor-pointer ${
+                            simState.cancelledFlights.includes(selectedFlight.flight_id)
+                              ? 'bg-[#F2D6B3] hover:bg-[#E3B987] border-[#F2D6B3] text-[#0A0A0B]'
+                              : 'bg-[#1B1214] hover:bg-[#261619] border-[#E14949]/50 text-[#FCA5A5]'
+                          }`}
+                        >
+                          {simState.cancelledFlights.includes(selectedFlight.flight_id) ? (
+                            <>
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Restore {selectedFlight.flight_id}
+                            </>
+                          ) : (
+                            <>
+                              <XCircle className="w-3.5 h-3.5" /> Cancel {selectedFlight.flight_id}
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+
+                    {controlTab === 'aog' && (
+                      <div className="space-y-3.5">
+                        <div>
+                          <label className="block text-[11px] text-[#8E8E98] mb-1.5">Aircraft Tail</label>
+                          <select
+                            value={aogTail}
+                            onChange={(e) => {
+                              setAogTail(e.target.value);
+                              setAogLegOrder(1);
+                            }}
+                            className="w-full bg-[#0C0C0F] border border-[#2A2A34] rounded-md px-3 py-2 text-xs font-mono text-[#F5F5F7]"
+                          >
+                            {FLIGHT_NETWORK.crews.map((c) => (
+                              <option key={c.tail_id} value={c.tail_id}>
+                                {c.tail_id} ({c.base})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-[#8E8E98] mb-1.5">
+                            Out of Service From
+                          </label>
+                          <select
+                            value={aogLegOrder}
+                            onChange={(e) => setAogLegOrder(Number(e.target.value))}
+                            className="w-full bg-[#0C0C0F] border border-[#2A2A34] rounded-md px-3 py-2 text-xs font-mono text-[#F5F5F7]"
+                          >
+                            {aogTailLegs.map((l) => (
+                              <option key={l.flight_id} value={l.leg_order}>
+                                Leg {l.leg_order}: {l.flight_id} ({l.dep})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={applyAog}
+                          className="w-full py-2.5 rounded-md bg-[#1B1214] hover:bg-[#261619] border border-[#E14949]/50 text-[#FCA5A5] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Wrench className="w-3.5 h-3.5" /> Ground {aogTail} (AOG)
+                        </button>
+
+                        {Object.keys(simState.aogTails).length > 0 && (
+                          <div className="space-y-1.5 pt-3 border-t border-[#222229]">
+                            <div className="text-[11px] text-[#71717A]">Active Groundings</div>
+                            {Object.entries(simState.aogTails).map(([tail, leg]) => (
+                              <div
+                                key={tail}
+                                className="flex items-center justify-between px-3 py-2 rounded-md bg-[#1B1214] border border-[#E14949]/35 text-xs font-mono"
+                              >
+                                <span className="text-[#FCA5A5]">
+                                  {tail} · from Leg {leg}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeAog(tail)}
+                                  className="text-[#8E8E98] hover:text-white cursor-pointer"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {controlTab === 'closure' && (
+                      <div className="space-y-3.5">
+                        <div>
+                          <label className="block text-[11px] text-[#8E8E98] mb-1.5">Station</label>
+                          <select
+                            value={closureAirport}
+                            onChange={(e) => setClosureAirport(e.target.value)}
+                            className="w-full bg-[#0C0C0F] border border-[#2A2A34] rounded-md px-3 py-2 text-xs font-mono text-[#F5F5F7]"
+                          >
+                            {FLIGHT_NETWORK.airports.map((a) => (
+                              <option key={a.id} value={a.id}>
+                                {a.id} · {a.city}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="block text-[11px] text-[#8E8E98] mb-1.5">Start (IST)</label>
+                            <input
+                              type="time"
+                              value={closureStart}
+                              onChange={(e) => setClosureStart(e.target.value)}
+                              className="w-full bg-[#0C0C0F] border border-[#2A2A34] rounded-md px-2.5 py-2 text-xs font-mono text-[#F5F5F7]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-[#8E8E98] mb-1.5">Reopen (IST)</label>
+                            <input
+                              type="time"
+                              value={closureEnd}
+                              onChange={(e) => setClosureEnd(e.target.value)}
+                              className="w-full bg-[#0C0C0F] border border-[#2A2A34] rounded-md px-2.5 py-2 text-xs font-mono text-[#F5F5F7]"
+                            />
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={applyClosure}
+                          className="w-full py-2.5 rounded-md bg-[#1D1813] hover:bg-[#292017] border border-[#E3B987]/50 text-[#F2D6B3] text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <CloudFog className="w-3.5 h-3.5" /> Close {closureAirport} ({closureStart}–{closureEnd})
+                        </button>
+
+                        {Object.keys(simState.airportClosures).length > 0 && (
+                          <div className="space-y-1.5 pt-3 border-t border-[#222229]">
+                            <div className="text-[11px] text-[#71717A]">Active Closures</div>
+                            {Object.entries(simState.airportClosures).map(([ap, win]) => (
+                              <div
+                                key={ap}
+                                className="flex items-center justify-between px-3 py-2 rounded-md bg-[#1D1813] border border-[#E3B987]/35 text-xs font-mono"
+                              >
+                                <span className="text-[#F2D6B3]">
+                                  {ap} · {toHHMM(win.start)}–{toHHMM(win.end)}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeClosure(ap)}
+                                  className="text-[#8E8E98] hover:text-white cursor-pointer"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {recoveryOptions.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setDrawerTab('recover')}
+                        className="mt-auto w-full py-2.5 px-3 rounded-md bg-[#F2D6B3]/12 hover:bg-[#F2D6B3]/20 border border-[#F2D6B3]/40 text-xs font-semibold text-[#F2D6B3] flex items-center justify-between transition-colors cursor-pointer"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          {recoveryOptions.length} Recovery Options Ready
+                        </span>
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {drawerTab === 'recover' && (
+                  <div className="p-4 flex-1 overflow-auto space-y-3">
+                    {recoveryOptions.length === 0 ? (
+                      <div className="h-full min-h-[260px] flex flex-col items-center justify-center text-center px-4">
+                        <div className="w-10 h-10 rounded-full bg-[#18181F] border border-[#2B2B36] flex items-center justify-center mb-3">
+                          <CheckCircle2 className="w-5 h-5 text-[#F2D6B3]" />
+                        </div>
+                        <div className="text-sm font-semibold text-[#F5F5F7]">
+                          {k.flightsDelayed === 0 && k.flightsCancelled === 0
+                            ? 'All Operations Nominal'
+                            : 'No Further Recoveries'}
+                        </div>
+                        <p className="text-xs text-[#71717A] mt-1.5 leading-relaxed">
+                          {k.flightsDelayed === 0 && k.flightsCancelled === 0
+                            ? 'Select a scenario preset or inject a delay in the Simulate tab to generate ranked recovery actions.'
+                            : 'Available spare aircraft and legal connection hold windows have been exhausted.'}
+                        </p>
+                      </div>
+                    ) : (
+                      recoveryOptions.map((opt, idx) => {
+                        const isSpotlight = idx === 0;
+                        const beforeDelay = Math.max(1, k.totalDelayMins);
+                        const afterDelay = opt.sim.kpis.totalDelayMins;
+                        const afterBarPct = Math.min(100, Math.round((afterDelay / beforeDelay) * 100));
+
+                        return (
+                          <div
+                            key={opt.id}
+                            onMouseEnter={() => setHoveredRecoveryId(opt.id)}
+                            onMouseLeave={() => setHoveredRecoveryId(null)}
+                            style={isSpotlight ? CHAMFER_CARD : undefined}
+                            className={`p-3.5 transition-all ${
+                              isSpotlight
+                                ? 'bg-[#F5F5F7] text-[#0A0A0B] shadow-[0_12px_28px_rgba(0,0,0,0.55)]'
+                                : 'rounded-lg bg-[#17171D] border border-[#262630] hover:border-[#F2D6B3]/50 text-[#F5F5F7]'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <div>
+                                <span
+                                  className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-sm ${
+                                    isSpotlight
+                                      ? 'bg-[#0A0A0B] text-[#F2D6B3]'
+                                      : 'bg-[#24242E] text-[#F2D6B3]'
+                                  }`}
+                                >
+                                  #{idx + 1} {isSpotlight ? 'BEST OPTION' : 'ALTERNATIVE'}
+                                </span>
+                                <div
+                                  className={`text-sm font-bold mt-1.5 ${
+                                    isSpotlight ? 'text-[#0A0A0B]' : 'text-[#F5F5F7]'
+                                  }`}
+                                >
+                                  {opt.title}
+                                </div>
+                                <div
+                                  className={`text-xs mt-0.5 leading-snug ${
+                                    isSpotlight ? 'text-[#3F3F46]' : 'text-[#9A9AA6]'
+                                  }`}
+                                >
+                                  {opt.subtitle}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div
+                              className={`p-2 rounded mb-3 ${
+                                isSpotlight ? 'bg-[#E9E9EE]' : 'bg-[#101014]'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between text-[11px] font-mono tabular-nums mb-1">
+                                <span className={isSpotlight ? 'text-[#52525B]' : 'text-[#8E8E98]'}>
+                                  Delay
+                                </span>
+                                <span className="font-semibold">
+                                  {k.totalDelayMins}m → {afterDelay}m
+                                </span>
+                              </div>
+                              <div
+                                className={`h-1.5 w-full rounded-full overflow-hidden ${
+                                  isSpotlight ? 'bg-[#D4D4DC]' : 'bg-[#23232B]'
+                                }`}
+                              >
+                                <div
+                                  className={`h-full rounded-full transition-all duration-300 ${
+                                    afterDelay < k.totalDelayMins
+                                      ? isSpotlight
+                                        ? 'bg-[#0A0A0B]'
+                                        : 'bg-[#34D399]'
+                                      : 'bg-[#C88A5B]'
+                                  }`}
+                                  style={{ width: `${Math.max(4, afterBarPct)}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-1.5 mb-3 text-[10px] font-mono tabular-nums font-semibold">
+                              {opt.deltas.crewBreaches < 0 && (
+                                <span
+                                  className={`px-1.5 py-0.5 rounded-sm ${
+                                    isSpotlight
+                                      ? 'bg-[#E14949]/15 text-[#991B1B]'
+                                      : 'bg-[#E14949]/20 text-[#FCA5A5]'
+                                  }`}
+                                >
+                                  Breaches {opt.deltas.crewBreaches}
+                                </span>
+                              )}
+                              {opt.deltas.flightsCancelled < 0 && (
+                                <span
+                                  className={`px-1.5 py-0.5 rounded-sm ${
+                                    isSpotlight
+                                      ? 'bg-[#4E80EE]/15 text-[#1D4ED8]'
+                                      : 'bg-[#4E80EE]/20 text-[#93C5FD]'
+                                  }`}
+                                >
+                                  Restores {Math.abs(opt.deltas.flightsCancelled)} Legs
+                                </span>
+                              )}
+                              {opt.deltas.strandedPax < 0 && (
+                                <span
+                                  className={`px-1.5 py-0.5 rounded-sm ${
+                                    isSpotlight
+                                      ? 'bg-[#0A0A0B] text-[#F2D6B3]'
+                                      : 'bg-[#F2D6B3]/15 text-[#F2D6B3]'
+                                  }`}
+                                >
+                                  Rescues {Math.abs(opt.deltas.strandedPax)} Pax
+                                </span>
+                              )}
+                              {opt.deltas.totalDelayMins < 0 && (
+                                <span
+                                  className={`px-1.5 py-0.5 rounded-sm ${
+                                    isSpotlight
+                                      ? 'bg-[#0A0A0B]/10 text-[#0A0A0B]'
+                                      : 'bg-[#27272F] text-[#E4E4E7]'
+                                  }`}
+                                >
+                                  {opt.deltas.totalDelayMins}m delay
+                                </span>
+                              )}
+                              {opt.deltas.totalDelayMins > 0 && (
+                                <span
+                                  className={`px-1.5 py-0.5 rounded-sm ${
+                                    isSpotlight
+                                      ? 'bg-[#C88A5B]/20 text-[#7C2D12]'
+                                      : 'bg-[#C88A5B]/20 text-[#F2D6B3]'
+                                  }`}
+                                >
+                                  +{opt.deltas.totalDelayMins}m hold
+                                </span>
+                              )}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => applyRecovery(opt)}
+                              className={`w-full py-2 rounded-md text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                isSpotlight
+                                  ? 'bg-[#0A0A0B] hover:bg-[#1E1E24] text-[#F2D6B3]'
+                                  : 'bg-[#F2D6B3] hover:bg-[#E3B987] text-[#0A0A0B]'
+                              }`}
+                            >
+                              <Zap className="w-3.5 h-3.5" /> Apply Recovery
+                            </button>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
+            </section>
+          </main>
+
+          {showTestsModal && (
+            <div className="fixed inset-0 z-50 bg-[#0A0A0B]/85 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-[#121216] border border-[#2E2E38] rounded-xl max-w-xl w-full overflow-hidden shadow-2xl">
+                <div className="px-5 py-3.5 bg-[#15151A] border-b border-[#222229] flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FlaskConical className="w-4 h-4 text-[#F2D6B3]" />
+                    <h2 className="text-xs font-bold uppercase tracking-[0.14em] text-[#F2D6B3]">
+                      Cascade Engine Verification Suite
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowTestsModal(false)}
+                    className="text-[#8E8E98] hover:text-white cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="p-5 space-y-2.5">
+                  {testResults.map((t, i) => (
+                    <div
+                      key={i}
+                      className={`p-3 rounded-lg border ${
+                        t.pass
+                          ? 'bg-[#16161C] border-[#24242E]'
+                          : 'bg-[#1B1214] border-[#E14949]/60'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-[#F5F5F7]">{t.name}</span>
+                        <span
+                          className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-sm ${
+                            t.pass ? 'bg-[#F2D6B3] text-[#0A0A0B]' : 'bg-[#E14949] text-white'
+                          }`}
+                        >
+                          {t.pass ? 'PASS' : 'FAIL'}
+                        </span>
+                      </div>
+                      <div className="text-[11px] font-mono tabular-nums text-[#8E8E98] mt-1">
+                        {t.detail}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="pt-2 flex items-center justify-between text-xs text-[#8E8E98]">
+                    <span className="flex items-center gap-1.5 text-[11px]">
+                      <Info className="w-3.5 h-3.5 text-[#E3B987]" />
+                      5 deterministic hand-calculated assertions
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowTestsModal(false)}
+                      className="px-4 py-1.5 rounded-md bg-[#F2D6B3] hover:bg-[#E3B987] text-[#0A0A0B] font-semibold text-xs cursor-pointer"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
